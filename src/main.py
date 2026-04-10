@@ -1,5 +1,5 @@
 from config import DEFAULT_BET, REELS, ROWS, START_BALANCE
-from game import GameState, apply_bet, apply_win, can_spin
+from game import GameState, apply_bet, apply_win, can_spin, set_bet
 from slot_machine import evaluate_middle_row, print_grid, run_test_case, spin_reels
 from symbols import ALL_SYMBOLS
 from test_grids import TEST_CASES
@@ -73,6 +73,67 @@ def play_single_round(state: GameState) -> None:
     print()
 
 
+def try_change_bet(state: GameState, user_input: str) -> bool:
+    parts = user_input.split()
+
+    if len(parts) != 2:
+        return False
+
+    command, value = parts
+
+    if command != "bet":
+        return False
+
+    try:
+        new_bet = int(value)
+    except ValueError:
+        print("Der Einsatz muss eine ganze Zahl sein.")
+        print()
+        return True
+
+    if set_bet(state, new_bet):
+        print(f"Neuer Einsatz: {state.current_bet}")
+    else:
+        print("Ungültiger Einsatz.")
+        print("Der Einsatz muss größer als 0 und kleiner oder gleich dem aktuellen Guthaben sein.")
+
+    print()
+    return True
+
+
+def run_game_loop(state: GameState) -> None:
+    print("=== SPIEL STARTEN ===")
+    print("Drücke Enter für einen Spin.")
+    print("Gib 'bet <zahl>' ein, um den Einsatz zu ändern.")
+    print("Gib 'q' ein, um zu beenden.")
+    print()
+
+    while True:
+        if not can_spin(state):
+            print("Dein Guthaben reicht nicht mehr für einen weiteren Spin.")
+            print("Spiel beendet.")
+            break
+
+        user_input = input("> ").strip().lower()
+
+        if user_input == "q":
+            print("Spiel beendet.")
+            break
+
+        if user_input == "":
+            play_single_round(state)
+            continue
+
+        if try_change_bet(state, user_input):
+            continue
+
+        print("Ungültige Eingabe.")
+        print("Erlaubt sind: Enter, 'q', oder 'bet <zahl>'.")
+        print()
+
+    print(f"Endguthaben: {state.balance}")
+
+
 def main() -> None:
     """ print_game_info()
     print()
@@ -80,7 +141,7 @@ def main() -> None:
     run_all_tests() """
 
     state = GameState(balance=START_BALANCE, current_bet=DEFAULT_BET)
-    play_single_round(state)
+    run_game_loop(state)
 
 
 if __name__ == "__main__":

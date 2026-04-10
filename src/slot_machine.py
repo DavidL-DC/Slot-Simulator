@@ -1,17 +1,35 @@
 import random
 
-from config import REELS, ROWS
-from symbols import ALL_SYMBOLS, Symbol
+from config import REELS, REEL_STRIPS, ROWS
+from symbols import Symbol
+
+
+def get_visible_symbols(strip: list[Symbol], stop_index: int, window_size: int) -> list[Symbol]:
+    visible_symbols: list[Symbol] = []
+    strip_length = len(strip)
+
+    for offset in range(window_size):
+        symbol_index = (stop_index + offset) % strip_length
+        visible_symbols.append(strip[symbol_index])
+
+    return visible_symbols
 
 
 def spin_reels() -> list[list[Symbol]]:
+    columns: list[list[Symbol]] = []
+
+    for reel_index in range(REELS):
+        strip = REEL_STRIPS[reel_index]
+        stop_index = random.randint(0, len(strip) - 1)
+        visible_column = get_visible_symbols(strip, stop_index, ROWS)
+        columns.append(visible_column)
+
     grid: list[list[Symbol]] = []
 
-    for _ in range(ROWS):
+    for row_index in range(ROWS):
         row: list[Symbol] = []
-        for _ in range(REELS):
-            symbol = random.choice(ALL_SYMBOLS)
-            row.append(symbol)
+        for reel_index in range(REELS):
+            row.append(columns[reel_index][row_index])
         grid.append(row)
 
     return grid

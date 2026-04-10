@@ -17,3 +17,13 @@ def apply_bet(state: GameState) -> None:
 
 def apply_win(state: GameState, win_amount: int) -> None:
     state.balance += win_amount
+
+def set_bet(state: GameState, new_bet: int) -> bool:
+    if new_bet <= 0:
+        return False
+
+    if new_bet > state.balance:
+        return False
+
+    state.current_bet = new_bet
+    return True
