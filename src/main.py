@@ -1,6 +1,12 @@
-from config import DEFAULT_BET, REELS, ROWS, START_BALANCE
+from config import DEFAULT_BET, PAYLINES, REELS, ROWS, START_BALANCE
 from game import GameState, apply_bet, apply_win, can_spin, set_bet
-from slot_machine import evaluate_middle_row, print_grid, run_test_case, spin_reels
+from slot_machine import (
+    evaluate_all_paylines,
+    print_grid,
+    print_line_results,
+    run_test_case,
+    spin_reels,
+)
 from symbols import ALL_SYMBOLS
 from test_grids import TEST_CASES
 
@@ -11,6 +17,7 @@ def print_game_info() -> None:
     print(f"Reihen: {ROWS}")
     print(f"Startguthaben: {START_BALANCE}")
     print(f"Standard-Einsatz: {DEFAULT_BET}")
+    print(f"Anzahl Linien: {len(PAYLINES)}")
     print()
     print("Symbole:")
     for symbol in ALL_SYMBOLS:
@@ -65,10 +72,12 @@ def play_single_round(state: GameState) -> None:
     print_grid(grid)
     print()
 
-    win = evaluate_middle_row(grid, state.current_bet)
-    print(f"Gewinn auf mittlerer Reihe: {win}")
+    total_win, line_results = evaluate_all_paylines(grid, state.current_bet)
+    print_line_results(line_results)
+    print()
+    print(f"Gesamtgewinn: {total_win}")
 
-    apply_win(state, win)
+    apply_win(state, total_win)
     print(f"Guthaben nach Auszahlung: {state.balance}")
     print()
 

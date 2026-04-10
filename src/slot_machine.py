@@ -1,6 +1,6 @@
 import random
 
-from config import REELS, REEL_STRIPS, ROWS
+from config import PAYLINES, REELS, REEL_STRIPS, ROWS
 from symbols import Symbol
 
 
@@ -42,22 +42,24 @@ def print_grid(grid: list[list[Symbol]]) -> None:
         print(formatted_row)
 
 
-def get_middle_row(grid: list[list[Symbol]]) -> list[Symbol]:
-    middle_row_index = len(grid) // 2
-    return grid[middle_row_index]
+def get_line_symbols(grid: list[list[Symbol]], payline: list[int]) -> list[Symbol]:
+    line_symbols: list[Symbol] = []
+
+    for reel_index, row_index in enumerate(payline):
+        line_symbols.append(grid[row_index][reel_index])
+
+    return line_symbols
 
 
-def evaluate_middle_row(grid: list[list[Symbol]], bet: int) -> int:
-    row = get_middle_row(grid)
-
-    first_symbol = row[0]
+def evaluate_line_symbols(line_symbols: list[Symbol], bet: int) -> int:
+    first_symbol = line_symbols[0]
 
     if first_symbol.is_scatter:
         return 0
 
     if first_symbol.is_wild:
         target_symbol = None
-        for symbol in row[1:]:
+        for symbol in line_symbols[1:]:
             if not symbol.is_wild and not symbol.is_scatter:
                 target_symbol = symbol
                 break
@@ -69,7 +71,7 @@ def evaluate_middle_row(grid: list[list[Symbol]], bet: int) -> int:
 
     match_count = 0
 
-    for symbol in row:
+    for symbol in line_symbols:
         if symbol.is_scatter:
             break
 
@@ -83,6 +85,45 @@ def evaluate_middle_row(grid: list[list[Symbol]], bet: int) -> int:
 
     multiplier = target_symbol.payouts.get(match_count, 0)
     return bet * multiplier
+
+
+def evaluate_middle_row(grid: list[list[Symbol]], bet: int) -> int:
+    middle_payline = [1, 1, 1, 1, 1]
+    line_symbols = get_line_symbols(grid, middle_payline)
+    return evaluate_line_symbols(line_symbols, bet)
+
+
+def evaluate_all_paylines(grid: list[list[Symbol]], bet: int) -> tuple[int, list[dict]]:
+    total_win = 0
+    line_results: list[dict] = []
+
+    for line_index, payline in enumerate(PAYLINES, start=1):
+        line_symbols = get_line_symbols(grid, payline)
+        win = evaluate_line_symbols(line_symbols, bet)
+
+        line_results.append(
+            {
+                "line_index": line_index,
+                "payline": payline,
+                "symbols": line_symbols,
+                "win": win,
+            }
+        )
+
+        total_win += win
+
+    return total_win, line_results
+
+
+def print_line_results(line_results: list[dict]) -> None:
+    print("=== LINIENAUSWERTUNG ===")
+
+    for result in line_results:
+        formatted_symbols = " - ".join(symbol.display for symbol in result["symbols"])
+        print(
+            f"Linie {result['line_index']}: "
+            f"{formatted_symbols} | Gewinn: {result['win']}"
+        )
 
 
 def run_test_case(name: str, grid: list[list[Symbol]], bet: int, expected_win: int) -> bool:

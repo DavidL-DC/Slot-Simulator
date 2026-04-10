@@ -13,3 +13,11 @@ REEL_STRIPS = [
     [LANTERN, DRUM, INGOT, COIN, BULL, DRUM, YIN_YANG, INGOT, LANTERN, DRUM],
     [DRUM, INGOT, LANTERN, BULL, COIN, DRUM, INGOT, YIN_YANG, LANTERN, DRUM],
 ]
+
+PAYLINES = [
+    [0, 0, 0, 0, 0],  # obere Reihe
+    [1, 1, 1, 1, 1],  # mittlere Reihe
+    [2, 2, 2, 2, 2],  # untere Reihe
+    [0, 1, 2, 1, 0],  # V-Form
+    [2, 1, 0, 1, 2],  # umgedrehte V-Form
+]
