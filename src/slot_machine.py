@@ -125,15 +125,68 @@ def print_line_results(line_results: list[dict]) -> None:
             f"{formatted_symbols} | Gewinn: {result['win']}"
         )
 
-
-def run_test_case(name: str, grid: list[list[Symbol]], bet: int, expected_win: int) -> bool:
-    print(f"=== TEST: {name} ===")
+def run_middle_row_test_case(name: str, grid: list[list[Symbol]], bet: int, expected_win: int) -> bool:
+    print(f"=== TEST MITTLERE REIHE: {name} ===")
     print_grid(grid)
     actual_win = evaluate_middle_row(grid, bet)
     print(f"Erwarteter Gewinn: {expected_win}")
     print(f"Tatsächlicher Gewinn: {actual_win}")
 
     passed = actual_win == expected_win
+
+    if passed:
+        print("Ergebnis: OK")
+    else:
+        print("Ergebnis: FEHLER")
+
+    print()
+    return passed
+
+
+def run_payline_test_case(
+    name: str,
+    grid: list[list[Symbol]],
+    payline: list[int],
+    bet: int,
+    expected_win: int,
+) -> bool:
+    print(f"=== TEST EINZELNE LINIE: {name} ===")
+    print_grid(grid)
+    print(f"Payline: {payline}")
+
+    line_symbols = get_line_symbols(grid, payline)
+    actual_win = evaluate_line_symbols(line_symbols, bet)
+
+    print(f"Linien-Symbole: {' - '.join(symbol.display for symbol in line_symbols)}")
+    print(f"Erwarteter Gewinn: {expected_win}")
+    print(f"Tatsächlicher Gewinn: {actual_win}")
+
+    passed = actual_win == expected_win
+
+    if passed:
+        print("Ergebnis: OK")
+    else:
+        print("Ergebnis: FEHLER")
+
+    print()
+    return passed
+
+
+def run_all_paylines_test_case(
+    name: str,
+    grid: list[list[Symbol]],
+    bet: int,
+    expected_total_win: int,
+) -> bool:
+    print(f"=== TEST ALLE LINIEN: {name} ===")
+    print_grid(grid)
+
+    actual_total_win, line_results = evaluate_all_paylines(grid, bet)
+    print_line_results(line_results)
+    print(f"Erwarteter Gesamtgewinn: {expected_total_win}")
+    print(f"Tatsächlicher Gesamtgewinn: {actual_total_win}")
+
+    passed = actual_total_win == expected_total_win
 
     if passed:
         print("Ergebnis: OK")

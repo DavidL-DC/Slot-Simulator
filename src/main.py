@@ -4,11 +4,13 @@ from slot_machine import (
     evaluate_all_paylines,
     print_grid,
     print_line_results,
-    run_test_case,
+    run_all_paylines_test_case,
+    run_middle_row_test_case,
+    run_payline_test_case,
     spin_reels,
 )
 from symbols import ALL_SYMBOLS
-from test_grids import TEST_CASES
+from test_grids import ALL_PAYLINES_TEST_CASES, MIDDLE_ROW_TEST_CASES, PAYLINE_TEST_CASES
 
 
 def print_game_info() -> None:
@@ -36,16 +38,45 @@ def run_all_tests() -> None:
     print()
 
     passed_tests = 0
-    total_tests = len(TEST_CASES)
+    total_tests = 0
 
-    for test_case in TEST_CASES:
-        passed = run_test_case(
+    print("--- Tests: mittlere Reihe ---")
+    print()
+    for test_case in MIDDLE_ROW_TEST_CASES:
+        total_tests += 1
+        passed = run_middle_row_test_case(
             name=test_case["name"],
             grid=test_case["grid"],
             bet=DEFAULT_BET,
             expected_win=test_case["expected_win"],
         )
+        if passed:
+            passed_tests += 1
 
+    print("--- Tests: einzelne Gewinnlinien ---")
+    print()
+    for test_case in PAYLINE_TEST_CASES:
+        total_tests += 1
+        passed = run_payline_test_case(
+            name=test_case["name"],
+            grid=test_case["grid"],
+            payline=test_case["payline"],
+            bet=DEFAULT_BET,
+            expected_win=test_case["expected_win"],
+        )
+        if passed:
+            passed_tests += 1
+
+    print("--- Tests: Gesamtauswertung aller Linien ---")
+    print()
+    for test_case in ALL_PAYLINES_TEST_CASES:
+        total_tests += 1
+        passed = run_all_paylines_test_case(
+            name=test_case["name"],
+            grid=test_case["grid"],
+            bet=DEFAULT_BET,
+            expected_total_win=test_case["expected_total_win"],
+        )
         if passed:
             passed_tests += 1
 
