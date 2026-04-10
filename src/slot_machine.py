@@ -50,12 +50,15 @@ def get_line_symbols(grid: list[list[Symbol]], payline: list[int]) -> list[Symbo
 
     return line_symbols
 
-
-def evaluate_line_symbols(line_symbols: list[Symbol], bet: int) -> int:
+def analyze_line_symbols(line_symbols: list[Symbol]) -> dict:
     first_symbol = line_symbols[0]
 
     if first_symbol.is_scatter:
-        return 0
+        return {
+            "target_symbol": None,
+            "match_count": 0,
+            "win": 0,
+        }
 
     if first_symbol.is_wild:
         target_symbol = None
@@ -65,7 +68,11 @@ def evaluate_line_symbols(line_symbols: list[Symbol], bet: int) -> int:
                 break
 
         if target_symbol is None:
-            return 0
+            return {
+                "target_symbol": None,
+                "match_count": 0,
+                "win": 0,
+            }
     else:
         target_symbol = first_symbol
 
@@ -81,6 +88,25 @@ def evaluate_line_symbols(line_symbols: list[Symbol], bet: int) -> int:
             break
 
     if match_count < 3:
+        return {
+            "target_symbol": target_symbol,
+            "match_count": match_count,
+            "win": 0,
+        }
+
+    return {
+        "target_symbol": target_symbol,
+        "match_count": match_count,
+        "win": 0,
+    }
+
+def evaluate_line_symbols(line_symbols: list[Symbol], bet: int) -> int:
+    analysis = analyze_line_symbols(line_symbols)
+
+    target_symbol = analysis["target_symbol"]
+    match_count = analysis["match_count"]
+
+    if target_symbol is None or match_count < 3:
         return 0
 
     multiplier = target_symbol.payouts.get(match_count, 0)
@@ -99,6 +125,7 @@ def evaluate_all_paylines(grid: list[list[Symbol]], bet: int) -> tuple[int, list
 
     for line_index, payline in enumerate(PAYLINES, start=1):
         line_symbols = get_line_symbols(grid, payline)
+        analysis = analyze_line_symbols(line_symbols)
         win = evaluate_line_symbols(line_symbols, bet)
 
         line_results.append(
@@ -107,6 +134,8 @@ def evaluate_all_paylines(grid: list[list[Symbol]], bet: int) -> tuple[int, list
                 "payline": payline,
                 "symbols": line_symbols,
                 "win": win,
+                "target_symbol": analysis["target_symbol"],
+                "match_count": analysis["match_count"],
             }
         )
 

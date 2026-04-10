@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from game import GameState, add_free_spins, apply_bet, apply_win, consume_free_spin, is_free_spin
 from slot_machine import evaluate_total_win, spin_reels
@@ -21,6 +21,10 @@ class SimulationStats:
     scatter_triggers: int = 0
     total_free_spins_awarded: int = 0
 
+    line_hit_counts: dict[str, int] = field(default_factory=dict)
+    line_hit_wins: dict[str, int] = field(default_factory=dict)
+    scatter_count_distribution: dict[int, int] = field(default_factory=dict)
+
     def rtp(self) -> float:
         if self.total_bet == 0:
             return 0.0
@@ -30,6 +34,29 @@ class SimulationStats:
         if self.total_spins == 0:
             return 0.0
         return self.winning_spins / self.total_spins * 100
+
+
+def record_line_hits(stats: SimulationStats, line_results: list[dict]) -> None:
+    for result in line_results:
+        if result["win"] <= 0:
+            continue
+
+        target_symbol = result["target_symbol"]
+        match_count = result["match_count"]
+
+        if target_symbol is None or match_count < 3:
+            continue
+
+        key = f"{target_symbol.name}_{match_count}"
+
+        stats.line_hit_counts[key] = stats.line_hit_counts.get(key, 0) + 1
+        stats.line_hit_wins[key] = stats.line_hit_wins.get(key, 0) + result["win"]
+
+
+def record_scatter_distribution(stats: SimulationStats, scatter_count: int) -> None:
+    stats.scatter_count_distribution[scatter_count] = (
+        stats.scatter_count_distribution.get(scatter_count, 0) + 1
+    )
 
 
 def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
@@ -50,6 +77,10 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
 
     total_win = win_result["total_win"]
     awarded_free_spins = win_result["awarded_free_spins"]
+    scatter_count = win_result["scatter_count"]
+
+    record_line_hits(stats, win_result["line_results"])
+    record_scatter_distribution(stats, scatter_count)
 
     if total_win > 0:
         stats.winning_spins += 1
@@ -76,7 +107,6 @@ def run_simulation(start_balance: int, bet: int, base_game_spins: int) -> Simula
     completed_base_spins = 0
 
     while completed_base_spins < base_game_spins:
-        if not is_free_spin(state): print(f"{completed_base_spins}/{base_game_spins}")
         if not is_free_spin(state):
             if state.balance < state.current_bet:
                 break
@@ -84,12 +114,31 @@ def run_simulation(start_balance: int, bet: int, base_game_spins: int) -> Simula
 
         simulate_single_spin(state, stats)
 
-    print ("Beende Freispiele...")
-
     while is_free_spin(state):
         simulate_single_spin(state, stats)
 
     return stats
+
+
+def print_line_hit_stats(stats: SimulationStats) -> None:
+    print("=== LINIENTREFFER NACH SYMBOL ===")
+
+    if not stats.line_hit_counts:
+        print("Keine gewinnenden Linien registriert.")
+        return
+
+    for key in sorted(stats.line_hit_counts):
+        count = stats.line_hit_counts[key]
+        total_win = stats.line_hit_wins.get(key, 0)
+        print(f"{key}: Treffer={count}, Auszahlungswert gesamt={total_win}")
+
+
+def print_scatter_distribution(stats: SimulationStats) -> None:
+    print("=== SCATTER-VERTEILUNG ===")
+
+    for scatter_count in sorted(stats.scatter_count_distribution):
+        occurrences = stats.scatter_count_distribution[scatter_count]
+        print(f"{scatter_count} Scatter: {occurrences}")
 
 
 def print_simulation_stats(stats: SimulationStats) -> None:
@@ -110,3 +159,7 @@ def print_simulation_stats(stats: SimulationStats) -> None:
     print()
     print(f"Scatter-Trigger: {stats.scatter_triggers}")
     print(f"Gewonnene Freispiele gesamt: {stats.total_free_spins_awarded}")
+    print()
+    print_line_hit_stats(stats)
+    print()
+    print_scatter_distribution(stats)
