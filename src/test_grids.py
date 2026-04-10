@@ -150,3 +150,36 @@ ALL_PAYLINES_TEST_CASES = [
         "expected_total_win": 0,
     },
 ]
+
+SCATTER_TEST_CASES = [
+    {
+        "name": "3 Scatter irgendwo im Grid",
+        "grid": build_grid(
+            [COIN, BULL, DRUM, INGOT, LANTERN],
+            [DRUM, COIN, LANTERN, BULL, DRUM],
+            [INGOT, DRUM, COIN, LANTERN, INGOT],
+        ),
+        "expected_scatter_count": 3,
+        "expected_scatter_win": 50,
+    },
+    {
+        "name": "4 Scatter irgendwo im Grid",
+        "grid": build_grid(
+            [COIN, BULL, DRUM, COIN, LANTERN],
+            [DRUM, COIN, LANTERN, BULL, DRUM],
+            [INGOT, DRUM, COIN, LANTERN, INGOT],
+        ),
+        "expected_scatter_count": 4,
+        "expected_scatter_win": 200,
+    },
+    {
+        "name": "2 Scatter geben noch keinen Gewinn",
+        "grid": build_grid(
+            [COIN, BULL, DRUM, INGOT, LANTERN],
+            [DRUM, COIN, LANTERN, BULL, DRUM],
+            [INGOT, DRUM, BULL, LANTERN, INGOT],
+        ),
+        "expected_scatter_count": 2,
+        "expected_scatter_win": 0,
+    },
+]

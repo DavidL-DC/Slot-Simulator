@@ -1,16 +1,23 @@
 from config import DEFAULT_BET, PAYLINES, REELS, ROWS, START_BALANCE
 from game import GameState, apply_bet, apply_win, can_spin, set_bet
 from slot_machine import (
-    evaluate_all_paylines,
+    evaluate_total_win,
     print_grid,
     print_line_results,
+    print_scatter_result,
     run_all_paylines_test_case,
     run_middle_row_test_case,
     run_payline_test_case,
+    run_scatter_test_case,
     spin_reels,
 )
 from symbols import ALL_SYMBOLS
-from test_grids import ALL_PAYLINES_TEST_CASES, MIDDLE_ROW_TEST_CASES, PAYLINE_TEST_CASES
+from test_grids import (
+    ALL_PAYLINES_TEST_CASES,
+    MIDDLE_ROW_TEST_CASES,
+    PAYLINE_TEST_CASES,
+    SCATTER_TEST_CASES,
+)
 
 
 def print_game_info() -> None:
@@ -80,6 +87,20 @@ def run_all_tests() -> None:
         if passed:
             passed_tests += 1
 
+    print("--- Tests: Scatter ---")
+    print()
+    for test_case in SCATTER_TEST_CASES:
+        total_tests += 1
+        passed = run_scatter_test_case(
+            name=test_case["name"],
+            grid=test_case["grid"],
+            bet=DEFAULT_BET,
+            expected_scatter_count=test_case["expected_scatter_count"],
+            expected_scatter_win=test_case["expected_scatter_win"],
+        )
+        if passed:
+            passed_tests += 1
+
     print("=== ZUSAMMENFASSUNG ===")
     print(f"{passed_tests}/{total_tests} Tests bestanden")
     print()
@@ -103,12 +124,16 @@ def play_single_round(state: GameState) -> None:
     print_grid(grid)
     print()
 
-    total_win, line_results = evaluate_all_paylines(grid, state.current_bet)
-    print_line_results(line_results)
-    print()
-    print(f"Gesamtgewinn: {total_win}")
+    win_result = evaluate_total_win(grid, state.current_bet)
 
-    apply_win(state, total_win)
+    print_line_results(win_result["line_results"])
+    print()
+    print_scatter_result(win_result["scatter_count"], win_result["scatter_win"])
+    print()
+    print(f"Liniengewinn: {win_result['line_win']}")
+    print(f"Gesamtgewinn: {win_result['total_win']}")
+
+    apply_win(state, win_result["total_win"])
     print(f"Guthaben nach Auszahlung: {state.balance}")
     print()
 

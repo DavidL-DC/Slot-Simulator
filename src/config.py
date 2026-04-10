@@ -21,3 +21,9 @@ PAYLINES = [
     [0, 1, 2, 1, 0],  # V-Form
     [2, 1, 0, 1, 2],  # umgedrehte V-Form
 ]
+
+SCATTER_PAYOUTS = {
+    3: 5,
+    4: 20,
+    5: 100,
+}

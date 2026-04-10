@@ -11,7 +11,7 @@ class Symbol:
 
 
 BULL = Symbol(name="bull", display="BULL", payouts={3: 20, 4: 50, 5: 100})
-COIN = Symbol(name="coin", display="COIN", payouts={3: 15, 4: 40, 5: 80}, is_scatter=True)
+COIN = Symbol(name="coin", display="COIN", payouts={}, is_scatter=True)
 YIN_YANG = Symbol(name="yin_yang", display="YIN", payouts={3: 0, 4: 0, 5: 0}, is_wild=True)
 LANTERN = Symbol(name="lantern", display="LANT", payouts={3: 10, 4: 20, 5: 40})
 DRUM = Symbol(name="drum", display="DRUM", payouts={3: 8, 4: 16, 5: 30})
