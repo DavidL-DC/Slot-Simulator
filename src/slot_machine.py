@@ -65,3 +65,21 @@ def evaluate_middle_row(grid: list[list[Symbol]], bet: int) -> int:
 
     multiplier = target_symbol.payouts.get(match_count, 0)
     return bet * multiplier
+
+
+def run_test_case(name: str, grid: list[list[Symbol]], bet: int, expected_win: int) -> bool:
+    print(f"=== TEST: {name} ===")
+    print_grid(grid)
+    actual_win = evaluate_middle_row(grid, bet)
+    print(f"Erwarteter Gewinn: {expected_win}")
+    print(f"Tatsächlicher Gewinn: {actual_win}")
+
+    passed = actual_win == expected_win
+
+    if passed:
+        print("Ergebnis: OK")
+    else:
+        print("Ergebnis: FEHLER")
+
+    print()
+    return passed

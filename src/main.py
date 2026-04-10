@@ -1,6 +1,7 @@
 from config import DEFAULT_BET, REELS, ROWS, START_BALANCE
-from slot_machine import evaluate_middle_row, print_grid, spin_reels
+from slot_machine import print_grid, run_test_case, spin_reels
 from symbols import ALL_SYMBOLS
+from test_grids import TEST_CASES
 
 
 def print_game_info() -> None:
@@ -22,6 +23,27 @@ def print_game_info() -> None:
         print(f"- {symbol.display}: payouts={symbol.payouts}{extra}")
 
 
+def run_all_tests() -> None:
+    print("=== TESTS ===")
+    print()
+
+    passed_tests = 0
+    total_tests = len(TEST_CASES)
+
+    for test_case in TEST_CASES:
+        passed = run_test_case(
+            name=test_case["name"],
+            grid=test_case["grid"],
+            bet=DEFAULT_BET,
+            expected_win=test_case["expected_win"],
+        )
+
+        if passed:
+            passed_tests += 1
+
+    print("=== ZUSAMMENFASSUNG ===")
+    print(f"{passed_tests}/{total_tests} Tests bestanden")
+
 def main() -> None:
     print_game_info()
     print()
@@ -30,8 +52,7 @@ def main() -> None:
     print_grid(grid)
     print()
 
-    win = evaluate_middle_row(grid, DEFAULT_BET)
-    print(f"Gewinn mittlere Reihe: {win}")
+    run_all_tests()
 
 
 if __name__ == "__main__":
