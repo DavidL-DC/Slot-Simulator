@@ -27,3 +27,9 @@ SCATTER_PAYOUTS = {
     4: 20,
     5: 100,
 }
+
+FREE_SPINS_AWARDED = {
+    3: 5,
+    4: 8,
+    5: 12,
+}

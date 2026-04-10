@@ -1,6 +1,6 @@
 import random
 
-from config import PAYLINES, REELS, REEL_STRIPS, ROWS, SCATTER_PAYOUTS
+from config import FREE_SPINS_AWARDED, PAYLINES, REELS, REEL_STRIPS, ROWS, SCATTER_PAYOUTS
 from symbols import Symbol
 
 
@@ -128,14 +128,21 @@ def count_scatters(grid: list[list[Symbol]]) -> int:
 
 def evaluate_scatters(grid: list[list[Symbol]], bet: int) -> tuple[int, int]:
     scatter_count = count_scatters(grid)
-    multiplier = SCATTER_PAYOUTS.get(scatter_count, 0)
+    capped_count = min(scatter_count, max(SCATTER_PAYOUTS))
+    multiplier = SCATTER_PAYOUTS.get(capped_count, 0)
     scatter_win = bet * multiplier
     return scatter_count, scatter_win
+
+
+def get_awarded_free_spins(scatter_count: int) -> int:
+    capped_count = min(scatter_count, max(FREE_SPINS_AWARDED))
+    return FREE_SPINS_AWARDED.get(capped_count, 0)
 
 
 def evaluate_total_win(grid: list[list[Symbol]], bet: int) -> dict:
     line_win, line_results = evaluate_all_paylines(grid, bet)
     scatter_count, scatter_win = evaluate_scatters(grid, bet)
+    awarded_free_spins = get_awarded_free_spins(scatter_count)
     total_win = line_win + scatter_win
 
     return {
@@ -143,6 +150,7 @@ def evaluate_total_win(grid: list[list[Symbol]], bet: int) -> dict:
         "line_results": line_results,
         "scatter_count": scatter_count,
         "scatter_win": scatter_win,
+        "awarded_free_spins": awarded_free_spins,
         "total_win": total_win,
     }
 
@@ -158,10 +166,11 @@ def print_line_results(line_results: list[dict]) -> None:
         )
 
 
-def print_scatter_result(scatter_count: int, scatter_win: int) -> None:
+def print_scatter_result(scatter_count: int, scatter_win: int, awarded_free_spins: int) -> None:
     print("=== SCATTER-AUSWERTUNG ===")
     print(f"Scatter-Anzahl: {scatter_count}")
     print(f"Scatter-Gewinn: {scatter_win}")
+    print(f"Gewonnene Freispiele: {awarded_free_spins}")
 
 
 def run_middle_row_test_case(name: str, grid: list[list[Symbol]], bet: int, expected_win: int) -> bool:
@@ -242,20 +251,25 @@ def run_scatter_test_case(
     bet: int,
     expected_scatter_count: int,
     expected_scatter_win: int,
+    expected_free_spins: int,
 ) -> bool:
     print(f"=== TEST SCATTER: {name} ===")
     print_grid(grid)
 
     actual_scatter_count, actual_scatter_win = evaluate_scatters(grid, bet)
+    actual_free_spins = get_awarded_free_spins(actual_scatter_count)
 
     print(f"Erwartete Scatter-Anzahl: {expected_scatter_count}")
     print(f"Tatsächliche Scatter-Anzahl: {actual_scatter_count}")
     print(f"Erwarteter Scatter-Gewinn: {expected_scatter_win}")
     print(f"Tatsächlicher Scatter-Gewinn: {actual_scatter_win}")
+    print(f"Erwartete Freispiele: {expected_free_spins}")
+    print(f"Tatsächliche Freispiele: {actual_free_spins}")
 
     passed = (
         actual_scatter_count == expected_scatter_count
         and actual_scatter_win == expected_scatter_win
+        and actual_free_spins == expected_free_spins
     )
 
     if passed:

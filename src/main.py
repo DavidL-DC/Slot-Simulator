@@ -1,5 +1,14 @@
 from config import DEFAULT_BET, PAYLINES, REELS, ROWS, START_BALANCE
-from game import GameState, apply_bet, apply_win, can_spin, set_bet
+from game import (
+    GameState,
+    add_free_spins,
+    apply_bet,
+    apply_win,
+    can_spin,
+    consume_free_spin,
+    is_free_spin,
+    set_bet,
+)
 from slot_machine import (
     evaluate_total_win,
     print_grid,
@@ -87,7 +96,7 @@ def run_all_tests() -> None:
         if passed:
             passed_tests += 1
 
-    print("--- Tests: Scatter ---")
+    print("--- Tests: Scatter und Freispiele ---")
     print()
     for test_case in SCATTER_TEST_CASES:
         total_tests += 1
@@ -97,6 +106,7 @@ def run_all_tests() -> None:
             bet=DEFAULT_BET,
             expected_scatter_count=test_case["expected_scatter_count"],
             expected_scatter_win=test_case["expected_scatter_win"],
+            expected_free_spins=test_case["expected_free_spins"],
         )
         if passed:
             passed_tests += 1
@@ -107,17 +117,26 @@ def run_all_tests() -> None:
 
 
 def play_single_round(state: GameState) -> None:
+    free_spin_mode = is_free_spin(state)
+
     print("=== SPIELRUNDE ===")
     print(f"Aktuelles Guthaben: {state.balance}")
     print(f"Aktueller Einsatz: {state.current_bet}")
+    print(f"Verbleibende Freispiele vor dem Spin: {state.free_spins_remaining}")
     print()
 
     if not can_spin(state):
         print("Nicht genug Guthaben für einen weiteren Spin.")
         return
 
-    apply_bet(state)
-    print(f"Einsatz abgezogen. Neues Guthaben: {state.balance}")
+    if free_spin_mode:
+        consume_free_spin(state)
+        print("Freispiel wird genutzt. Kein Einsatz abgezogen.")
+        print(f"Verbleibende Freispiele nach Abzug: {state.free_spins_remaining}")
+    else:
+        apply_bet(state)
+        print(f"Einsatz abgezogen. Neues Guthaben: {state.balance}")
+
     print()
 
     grid = spin_reels()
@@ -128,10 +147,19 @@ def play_single_round(state: GameState) -> None:
 
     print_line_results(win_result["line_results"])
     print()
-    print_scatter_result(win_result["scatter_count"], win_result["scatter_win"])
+    print_scatter_result(
+        win_result["scatter_count"],
+        win_result["scatter_win"],
+        win_result["awarded_free_spins"],
+    )
     print()
     print(f"Liniengewinn: {win_result['line_win']}")
     print(f"Gesamtgewinn: {win_result['total_win']}")
+
+    if win_result["awarded_free_spins"] > 0:
+        add_free_spins(state, win_result["awarded_free_spins"])
+        print(f"Neue Freispiele gutgeschrieben: {win_result['awarded_free_spins']}")
+        print(f"Freispiele gesamt verfügbar: {state.free_spins_remaining}")
 
     apply_win(state, win_result["total_win"])
     print(f"Guthaben nach Auszahlung: {state.balance}")
@@ -179,6 +207,12 @@ def run_game_loop(state: GameState) -> None:
             print("Spiel beendet.")
             break
 
+        if is_free_spin(state):
+            print(f"Freispiele aktiv: {state.free_spins_remaining}")
+            print("Drücke Enter für das nächste Freispiel oder 'q' zum Beenden.")
+        else:
+            print(f"Guthaben: {state.balance} | Einsatz: {state.current_bet}")
+
         user_input = input("> ").strip().lower()
 
         if user_input == "q":
@@ -189,6 +223,11 @@ def run_game_loop(state: GameState) -> None:
             play_single_round(state)
             continue
 
+        if is_free_spin(state):
+            print("Während Freispielen sind nur Enter oder 'q' erlaubt.")
+            print()
+            continue
+
         if try_change_bet(state, user_input):
             continue
 
@@ -197,6 +236,7 @@ def run_game_loop(state: GameState) -> None:
         print()
 
     print(f"Endguthaben: {state.balance}")
+    print(f"Insgesamt gewonnene Freispiele: {state.total_free_spins_won}")
 
 
 def main() -> None:

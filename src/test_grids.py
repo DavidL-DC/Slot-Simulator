@@ -161,6 +161,7 @@ SCATTER_TEST_CASES = [
         ),
         "expected_scatter_count": 3,
         "expected_scatter_win": 50,
+        "expected_free_spins": 5,
     },
     {
         "name": "4 Scatter irgendwo im Grid",
@@ -171,6 +172,7 @@ SCATTER_TEST_CASES = [
         ),
         "expected_scatter_count": 4,
         "expected_scatter_win": 200,
+        "expected_free_spins": 8,
     },
     {
         "name": "2 Scatter geben noch keinen Gewinn",
@@ -181,5 +183,6 @@ SCATTER_TEST_CASES = [
         ),
         "expected_scatter_count": 2,
         "expected_scatter_win": 0,
+        "expected_free_spins": 0,
     },
 ]
