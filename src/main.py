@@ -27,6 +27,7 @@ from test_grids import (
     PAYLINE_TEST_CASES,
     SCATTER_TEST_CASES,
 )
+from simulation import print_simulation_stats, run_simulation
 
 
 def print_game_info() -> None:
@@ -193,11 +194,51 @@ def try_change_bet(state: GameState, user_input: str) -> bool:
     print()
     return True
 
+def try_run_simulation(state: GameState, user_input: str) -> bool:
+    parts = user_input.split()
+
+    if len(parts) != 2:
+        return False
+
+    command, value = parts
+
+    if command != "sim":
+        return False
+
+    try:
+        spin_count = int(value)
+    except ValueError:
+        print("Die Anzahl der Spins muss eine ganze Zahl sein.")
+        print()
+        return True
+
+    if spin_count <= 0:
+        print("Die Anzahl der Spins muss größer als 0 sein.")
+        print()
+        return True
+
+    start_balance = max(state.balance, spin_count * state.current_bet)
+
+    print(f"Starte Simulation mit {spin_count} Basis-Spiel-Spins ...")
+    print()
+
+    stats = run_simulation(
+        start_balance=start_balance,
+        bet=state.current_bet,
+        base_game_spins=spin_count,
+    )
+
+    print_simulation_stats(stats)
+    print()
+
+    return True
+
 
 def run_game_loop(state: GameState) -> None:
     print("=== SPIEL STARTEN ===")
     print("Drücke Enter für einen Spin.")
     print("Gib 'bet <zahl>' ein, um den Einsatz zu ändern.")
+    print("Gib 'sim <anzahl>' ein, um eine Simulation zu starten.")
     print("Gib 'q' ein, um zu beenden.")
     print()
 
@@ -229,6 +270,9 @@ def run_game_loop(state: GameState) -> None:
             continue
 
         if try_change_bet(state, user_input):
+            continue
+
+        if try_run_simulation(state, user_input):
             continue
 
         print("Ungültige Eingabe.")

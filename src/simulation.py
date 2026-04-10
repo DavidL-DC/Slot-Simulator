@@ -1,0 +1,112 @@
+from dataclasses import dataclass
+
+from game import GameState, add_free_spins, apply_bet, apply_win, consume_free_spin, is_free_spin
+from slot_machine import evaluate_total_win, spin_reels
+
+
+@dataclass
+class SimulationStats:
+    total_spins: int = 0
+    base_game_spins: int = 0
+    free_spins_played: int = 0
+
+    total_bet: int = 0
+    total_win: int = 0
+
+    base_game_win: int = 0
+    free_spin_win: int = 0
+
+    winning_spins: int = 0
+
+    scatter_triggers: int = 0
+    total_free_spins_awarded: int = 0
+
+    def rtp(self) -> float:
+        if self.total_bet == 0:
+            return 0.0
+        return self.total_win / self.total_bet * 100
+
+    def hit_rate(self) -> float:
+        if self.total_spins == 0:
+            return 0.0
+        return self.winning_spins / self.total_spins * 100
+
+
+def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
+    free_spin_mode = is_free_spin(state)
+
+    if free_spin_mode:
+        consume_free_spin(state)
+        stats.free_spins_played += 1
+    else:
+        apply_bet(state)
+        stats.total_bet += state.current_bet
+        stats.base_game_spins += 1
+
+    stats.total_spins += 1
+
+    grid = spin_reels()
+    win_result = evaluate_total_win(grid, state.current_bet)
+
+    total_win = win_result["total_win"]
+    awarded_free_spins = win_result["awarded_free_spins"]
+
+    if total_win > 0:
+        stats.winning_spins += 1
+
+    if awarded_free_spins > 0:
+        stats.scatter_triggers += 1
+        stats.total_free_spins_awarded += awarded_free_spins
+        add_free_spins(state, awarded_free_spins)
+
+    apply_win(state, total_win)
+
+    stats.total_win += total_win
+
+    if free_spin_mode:
+        stats.free_spin_win += total_win
+    else:
+        stats.base_game_win += total_win
+
+
+def run_simulation(start_balance: int, bet: int, base_game_spins: int) -> SimulationStats:
+    state = GameState(balance=start_balance, current_bet=bet)
+    stats = SimulationStats()
+
+    completed_base_spins = 0
+
+    while completed_base_spins < base_game_spins:
+        if not is_free_spin(state): print(f"{completed_base_spins}/{base_game_spins}")
+        if not is_free_spin(state):
+            if state.balance < state.current_bet:
+                break
+            completed_base_spins += 1
+
+        simulate_single_spin(state, stats)
+
+    print ("Beende Freispiele...")
+
+    while is_free_spin(state):
+        simulate_single_spin(state, stats)
+
+    return stats
+
+
+def print_simulation_stats(stats: SimulationStats) -> None:
+    print("=== SIMULATIONSERGEBNIS ===")
+    print(f"Gesamtanzahl Spins: {stats.total_spins}")
+    print(f"Basis-Spiel-Spins: {stats.base_game_spins}")
+    print(f"Gespielte Freispiele: {stats.free_spins_played}")
+    print()
+    print(f"Gesamteinsatz: {stats.total_bet}")
+    print(f"Gesamtauszahlung: {stats.total_win}")
+    print(f"RTP: {stats.rtp():.2f}%")
+    print()
+    print(f"Gewinnspins: {stats.winning_spins}")
+    print(f"Hit Rate: {stats.hit_rate():.2f}%")
+    print()
+    print(f"Basis-Spiel-Gewinn: {stats.base_game_win}")
+    print(f"Freispiel-Gewinn: {stats.free_spin_win}")
+    print()
+    print(f"Scatter-Trigger: {stats.scatter_triggers}")
+    print(f"Gewonnene Freispiele gesamt: {stats.total_free_spins_awarded}")
