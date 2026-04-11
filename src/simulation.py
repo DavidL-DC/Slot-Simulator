@@ -13,8 +13,17 @@ class SimulationStats:
     total_bet: int = 0
     total_win: int = 0
 
+    total_line_win: int = 0
+    total_scatter_win: int = 0
+
     base_game_win: int = 0
     free_spin_win: int = 0
+
+    base_game_line_win: int = 0
+    free_spin_line_win: int = 0
+
+    base_game_scatter_win: int = 0
+    free_spin_scatter_win: int = 0
 
     winning_spins: int = 0
 
@@ -34,6 +43,29 @@ class SimulationStats:
         if self.total_spins == 0:
             return 0.0
         return self.winning_spins / self.total_spins * 100
+    
+    def line_rtp(self) -> float:
+        if self.total_bet == 0:
+            return 0.0
+        return self.total_line_win / self.total_bet * 100
+
+
+    def scatter_rtp(self) -> float:
+        if self.total_bet == 0:
+            return 0.0
+        return self.total_scatter_win / self.total_bet * 100
+
+
+    def base_game_rtp(self) -> float:
+        if self.total_bet == 0:
+            return 0.0
+        return self.base_game_win / self.total_bet * 100
+
+
+    def free_spin_rtp(self) -> float:
+        if self.total_bet == 0:
+            return 0.0
+        return self.free_spin_win / self.total_bet * 100
 
 
 def record_line_hits(stats: SimulationStats, line_results: list[dict]) -> None:
@@ -76,6 +108,8 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
     win_result = evaluate_total_win(grid, state.current_bet)
 
     total_win = win_result["total_win"]
+    line_win = win_result["line_win"]
+    scatter_win = win_result["scatter_win"]
     awarded_free_spins = win_result["awarded_free_spins"]
     scatter_count = win_result["scatter_count"]
 
@@ -93,11 +127,17 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
     apply_win(state, total_win)
 
     stats.total_win += total_win
+    stats.total_line_win += line_win
+    stats.total_scatter_win += scatter_win
 
     if free_spin_mode:
         stats.free_spin_win += total_win
+        stats.free_spin_line_win += line_win
+        stats.free_spin_scatter_win += scatter_win
     else:
         stats.base_game_win += total_win
+        stats.base_game_line_win += line_win
+        stats.base_game_scatter_win += scatter_win
 
 
 def run_simulation(start_balance: int, bet: int, base_game_spins: int) -> SimulationStats:
@@ -108,6 +148,7 @@ def run_simulation(start_balance: int, bet: int, base_game_spins: int) -> Simula
 
     while completed_base_spins < base_game_spins:
         if not is_free_spin(state):
+            print(f"{completed_base_spins}/{base_game_spins}")
             if state.balance < state.current_bet:
                 break
             completed_base_spins += 1
@@ -151,6 +192,14 @@ def print_simulation_stats(stats: SimulationStats) -> None:
     print(f"Gesamtauszahlung: {stats.total_win}")
     print(f"RTP: {stats.rtp():.2f}%")
     print()
+    print("=== RTP AUFSCHLÜSSELUNG ===")
+    print(f"Linien RTP: {stats.line_rtp():.2f}%")
+    print(f"Scatter RTP: {stats.scatter_rtp():.2f}%")
+    print()
+    print(f"Basis-Spiel RTP: {stats.base_game_rtp():.2f}%")
+    print(f"Freispiel RTP: {stats.free_spin_rtp():.2f}%")
+    print()
+    print()
     print(f"Gewinnspins: {stats.winning_spins}")
     print(f"Hit Rate: {stats.hit_rate():.2f}%")
     print()
@@ -159,6 +208,16 @@ def print_simulation_stats(stats: SimulationStats) -> None:
     print()
     print(f"Scatter-Trigger: {stats.scatter_triggers}")
     print(f"Gewonnene Freispiele gesamt: {stats.total_free_spins_awarded}")
+    print()
+    print("=== DETAIL GEWINNE ===")
+    print(f"Liniengewinn gesamt: {stats.total_line_win}")
+    print(f"Scattergewinn gesamt: {stats.total_scatter_win}")
+    print()
+    print(f"Basis-Spiel Liniengewinn: {stats.base_game_line_win}")
+    print(f"Freispiel Liniengewinn: {stats.free_spin_line_win}")
+    print()
+    print(f"Basis-Spiel Scattergewinn: {stats.base_game_scatter_win}")
+    print(f"Freispiel Scattergewinn: {stats.free_spin_scatter_win}")
     print()
     print_line_hit_stats(stats)
     print()
