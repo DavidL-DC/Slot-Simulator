@@ -8,20 +8,68 @@ class Symbol:
     payouts: dict[int, int]
     is_wild: bool = False
     is_scatter: bool = False
+    is_credit_value_symbol: bool = False
+    is_collector: bool = False
 
 
-BULL = Symbol(name="bull", display="BULL", payouts={3: 20, 4: 50, 5: 100})
-COIN = Symbol(name="coin", display="COIN", payouts={}, is_scatter=True)
-YIN_YANG = Symbol(name="yin_yang", display="YIN", payouts={3: 0, 4: 0, 5: 0}, is_wild=True)
-LANTERN = Symbol(name="lantern", display="LANT", payouts={3: 10, 4: 20, 5: 40})
-DRUM = Symbol(name="drum", display="DRUM", payouts={3: 8, 4: 16, 5: 30})
-INGOT = Symbol(name="ingot", display="GOLD", payouts={3: 5, 4: 10, 5: 20})
+NINE = Symbol(name="nine", display="9", payouts={3: 2, 4: 4, 5: 8})
+TEN = Symbol(name="ten", display="10", payouts={3: 2, 4: 4, 5: 8})
+JACK = Symbol(name="jack", display="J", payouts={3: 3, 4: 6, 5: 12})
+QUEEN = Symbol(name="queen", display="Q", payouts={3: 3, 4: 6, 5: 12})
+KING = Symbol(name="king", display="K", payouts={3: 4, 4: 8, 5: 16})
+
+LANTERN = Symbol(name="gong", display="GONG", payouts={3: 5, 4: 10, 5: 20})
+VASE = Symbol(name="house", display="HOME", payouts={3: 6, 4: 12, 5: 24})
+GONG = Symbol(name="lantern", display="LANT", payouts={3: 8, 4: 16, 5: 32})
+HOUSE = Symbol(name="vase", display="VASE", payouts={3: 10, 4: 20, 5: 40})
+
+BULL = Symbol(
+    name="bull",
+    display="BULL",
+    payouts={3: 20, 4: 50, 5: 100},
+    is_wild=True,
+)
+
+COIN = Symbol(
+    name="coin",
+    display="COIN",
+    payouts={},
+    is_scatter=True,
+)
+
+YIN_YANG = Symbol(
+    name="yin_yang",
+    display="YIN",
+    payouts={3: 0, 4: 0, 5: 0},
+)
+
+CREDIT = Symbol(
+    name="credit",
+    display="CRDT",
+    payouts={},
+    is_credit_value_symbol=True,
+)
+
+COLLECTOR = Symbol(
+    name="collector",
+    display="COLL",
+    payouts={},
+    is_collector=True,
+)
 
 ALL_SYMBOLS = [
+    NINE,
+    TEN,
+    JACK,
+    QUEEN,
+    KING,
+    GONG,
+    HOUSE,
+    LANTERN,
+    VASE,
     BULL,
     COIN,
     YIN_YANG,
-    LANTERN,
-    DRUM,
-    INGOT,
+    CREDIT,
+    COLLECTOR,
 ]
