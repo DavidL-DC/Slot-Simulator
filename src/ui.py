@@ -10,7 +10,7 @@ from game import (
     consume_free_spin,
     is_free_spin,
 )
-from slot_machine import evaluate_total_win, spin_reels
+from slot_machine import evaluate_total_win, spin_reels, trigger_debug_yin_yang_feature
 from symbols import ALL_SYMBOLS, Symbol
 
 
@@ -116,6 +116,10 @@ class SlotUI:
                     self.change_bet(10)
                 elif event.key == pygame.K_DOWN:
                     self.change_bet(-10)
+                elif event.key == pygame.K_f:
+                    self.debug_trigger_free_spins()
+                elif event.key == pygame.K_y:
+                    self.debug_trigger_yin_yang()
 
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_pos = pygame.mouse.get_pos()
@@ -242,6 +246,37 @@ class SlotUI:
             self.spin_start_time + base_delay + reel_index * reel_delay
             for reel_index in range(GRID_COLS)
         ]
+
+    def debug_trigger_free_spins(self) -> None:
+        if self.is_spinning:
+            return
+
+        awarded = 8
+        add_free_spins(self.state, awarded)
+
+        self.last_awarded_free_spins = awarded
+        self.last_scatter_count = 3
+        self.last_scatter_win = 0
+        self.last_total_win = 0
+        self.status_text = "DEBUG: Freispiele erzwungen"
+        self.show_overlay(f"{awarded} FREE SPINS WON!", (255, 215, 80), 2200)
+
+    def debug_trigger_yin_yang(self) -> None:
+        if self.is_spinning:
+            return
+
+        result = trigger_debug_yin_yang_feature(self.state.current_bet)
+
+        apply_win(self.state, result["total_win"])
+
+        self.last_yin_yang_count = result["yin_yang_count"]
+        self.last_yin_yang_win = result["yin_yang_win"]
+        self.last_total_win = result["total_win"]
+        self.last_line_win = 0
+        self.last_scatter_win = 0
+        self.last_awarded_free_spins = 0
+        self.status_text = f"DEBUG: Yin-Yang-Feature Gewinn {result['total_win']}"
+        self.show_overlay("YIN-YANG FEATURE!", (210, 160, 255), 2000)
 
     def finish_spin(self) -> None:
         self.is_spinning = False
@@ -473,7 +508,7 @@ class SlotUI:
         )
 
     def draw_help_text(self) -> None:
-        help_text = "SPACE = Spin | Pfeil hoch/runter = Einsatz ändern | Maus: Buttons klickbar | ESC = Beenden"
+        help_text = "SPACE = Spin | F = Freispiele | Y = Yin-Yang | Pfeil hoch/runter = Einsatz | Maus: Buttons | ESC = Beenden"
         help_surface = self.small_font.render(help_text, True, TEXT_COLOR)
         self.screen.blit(
             help_surface,

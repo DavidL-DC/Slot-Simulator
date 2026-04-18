@@ -417,3 +417,14 @@ def run_scatter_test_case(
 
     print()
     return passed
+
+
+def trigger_debug_yin_yang_feature(bet: int) -> dict:
+    initial_positions = [(0, 0), (1, 2), (2, 4)]
+    yin_yang_win = play_yin_yang_feature(bet, initial_positions)
+
+    return {
+        "yin_yang_count": 3,
+        "yin_yang_win": yin_yang_win,
+        "total_win": yin_yang_win,
+    }
