@@ -7,9 +7,10 @@ from config import (
     REEL_STRIPS,
     ROWS,
     SCATTER_PAYOUTS,
-    YIN_YANG_FEATURE_PAYOUTS,
 )
+
 from symbols import Symbol
+from yin_yang_feature import YinYangFeatureResult, play_yin_yang_feature
 
 
 def get_visible_symbols(
@@ -191,16 +192,19 @@ def count_yin_yang_symbols(grid: list[list[Symbol]]) -> int:
     return yin_yang_count
 
 
-def evaluate_yin_yang_feature(grid: list[list[Symbol]], bet: int) -> tuple[int, int]:
-    initial_positions = get_yin_yang_positions(grid)
-    yin_yang_count = count_yin_yang_symbols(grid)
+def evaluate_yin_yang_feature(
+    grid: list[list[Symbol]],
+    bet: int,
+) -> tuple[int, int, YinYangFeatureResult | None]:
+    trigger_positions = get_yin_yang_positions(grid)
+    yin_yang_count = len(trigger_positions)
 
     if yin_yang_count < 3:
-        return yin_yang_count, 0
+        return yin_yang_count, 0, None
 
-    feature_win = play_yin_yang_feature(bet, initial_positions)
+    feature_result = play_yin_yang_feature(bet, trigger_positions)
 
-    return yin_yang_count, feature_win
+    return yin_yang_count, feature_result.total_win, feature_result
 
 
 def get_yin_yang_positions(grid: list[list[Symbol]]) -> list[tuple[int, int]]:
@@ -214,60 +218,14 @@ def get_yin_yang_positions(grid: list[list[Symbol]]) -> list[tuple[int, int]]:
     return positions
 
 
-def play_yin_yang_feature(bet: int, initial_positions: list[tuple[int, int]]) -> int:
-    # Grid: None oder Wert
-    grid: list[list[int | None]] = [[None for _ in range(REELS)] for _ in range(ROWS)]
-
-    for row_index, col_index in initial_positions:
-        grid[row_index][col_index] = random.choice([1, 1, 2]) * bet
-
-    # Column Bonuses
-    column_values = [250, 100, 100, 50, 150]
-
-    spins_left = 3
-
-    while spins_left > 0:
-        new_symbol = False
-
-        for row_index in range(ROWS):
-            for col_index in range(REELS):
-                if grid[row_index][col_index] is None:
-                    # Chance für neues YinYang
-                    if random.random() < 0.05:  # 15% Chance
-                        grid[row_index][col_index] = random.randint(1, 5) * bet
-                        new_symbol = True
-
-        if new_symbol:
-            spins_left = 3
-
-            # Scaling: Column Values erhöhen
-            column_values = [int(v * 1.2) for v in column_values]
-        else:
-            spins_left -= 1
-
-    # Auszahlung berechnen
-    total_win = 0
-
-    # YinYang Werte
-    for row_index in range(ROWS):
-        for col_index in range(REELS):
-            if grid[row_index][col_index] is not None:
-                total_win += grid[row_index][col_index] or 0
-
-    # Column Bonus
-    for col_index in range(REELS):
-        if all(grid[row_index][col_index] is not None for row_index in range(ROWS)):
-            total_win += column_values[col_index]
-
-    return total_win
-
-
 def evaluate_total_win(grid: list[list[Symbol]], bet: int) -> dict:
     line_win, line_results = evaluate_all_paylines(grid, bet)
     scatter_count, scatter_win = evaluate_scatters(grid, bet)
     awarded_free_spins = get_awarded_free_spins(scatter_count)
 
-    yin_yang_count, yin_yang_win = evaluate_yin_yang_feature(grid, bet)
+    yin_yang_count, yin_yang_win, yin_yang_feature_result = evaluate_yin_yang_feature(
+        grid, bet
+    )
 
     total_win = line_win + scatter_win + yin_yang_win
 
@@ -279,6 +237,7 @@ def evaluate_total_win(grid: list[list[Symbol]], bet: int) -> dict:
         "awarded_free_spins": awarded_free_spins,
         "yin_yang_count": yin_yang_count,
         "yin_yang_win": yin_yang_win,
+        "yin_yang_feature_result": yin_yang_feature_result,
         "total_win": total_win,
     }
 
@@ -420,11 +379,12 @@ def run_scatter_test_case(
 
 
 def trigger_debug_yin_yang_feature(bet: int) -> dict:
-    initial_positions = [(0, 0), (1, 2), (2, 4)]
-    yin_yang_win = play_yin_yang_feature(bet, initial_positions)
+    trigger_positions = [(0, 0), (1, 2), (2, 4)]
+    feature_result = play_yin_yang_feature(bet, trigger_positions)
 
     return {
-        "yin_yang_count": 3,
-        "yin_yang_win": yin_yang_win,
-        "total_win": yin_yang_win,
+        "yin_yang_count": len(trigger_positions),
+        "yin_yang_win": feature_result.total_win,
+        "yin_yang_feature_result": feature_result,
+        "total_win": feature_result.total_win,
     }

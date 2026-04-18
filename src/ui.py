@@ -67,6 +67,7 @@ class SlotUI:
         self.last_scatter_count = 0
         self.last_yin_yang_count = 0
         self.last_awarded_free_spins = 0
+        self.last_yin_yang_feature_result = None
         self.status_text = "Drücke LEERTASTE oder SPIN"
         self.overlay_text = ""
         self.overlay_color = ACCENT_COLOR
@@ -87,6 +88,7 @@ class SlotUI:
         self.pending_yin_yang_count = 0
         self.pending_awarded_free_spins = 0
         self.pending_free_spin_mode = False
+        self.pending_yin_yang_feature_result = None
 
         self.spin_button_rect = pygame.Rect(830, 470, 140, 60)
         self.bet_minus_rect = pygame.Rect(20, 470, 60, 50)
@@ -218,6 +220,7 @@ class SlotUI:
         line_win = win_result["line_win"]
         scatter_win = win_result["scatter_win"]
         yin_yang_win = win_result["yin_yang_win"]
+        yin_yang_feature_result = win_result["yin_yang_feature_result"]
 
         if free_spin_mode:
             total_win *= 3
@@ -232,6 +235,7 @@ class SlotUI:
         self.pending_scatter_count = win_result["scatter_count"]
         self.pending_yin_yang_count = win_result["yin_yang_count"]
         self.pending_awarded_free_spins = win_result["awarded_free_spins"]
+        self.pending_yin_yang_feature_result = yin_yang_feature_result
 
         self.current_grid = self.create_random_grid()
 
@@ -271,6 +275,7 @@ class SlotUI:
 
         self.last_yin_yang_count = result["yin_yang_count"]
         self.last_yin_yang_win = result["yin_yang_win"]
+        self.last_yin_yang_feature_result = result["yin_yang_feature_result"]
         self.last_total_win = result["total_win"]
         self.last_line_win = 0
         self.last_scatter_win = 0
@@ -290,6 +295,7 @@ class SlotUI:
         self.last_line_win = self.pending_line_win
         self.last_scatter_win = self.pending_scatter_win
         self.last_yin_yang_win = self.pending_yin_yang_win
+        self.last_yin_yang_feature_result = self.pending_yin_yang_feature_result
         self.last_scatter_count = self.pending_scatter_count
         self.last_yin_yang_count = self.pending_yin_yang_count
         self.last_awarded_free_spins = self.pending_awarded_free_spins
