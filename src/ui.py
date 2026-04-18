@@ -68,6 +68,9 @@ class SlotUI:
         self.last_yin_yang_count = 0
         self.last_awarded_free_spins = 0
         self.status_text = "Drücke LEERTASTE oder SPIN"
+        self.overlay_text = ""
+        self.overlay_color = ACCENT_COLOR
+        self.overlay_end_time = 0
 
         self.running = True
 
@@ -155,6 +158,13 @@ class SlotUI:
             [random.choice(ALL_SYMBOLS) for _ in range(GRID_COLS)]
             for _ in range(GRID_ROWS)
         ]
+
+    def show_overlay(
+        self, text: str, color: tuple[int, int, int], duration_ms: int = 1800
+    ) -> None:
+        self.overlay_text = text
+        self.overlay_color = color
+        self.overlay_end_time = pygame.time.get_ticks() + duration_ms
 
     def change_bet(self, delta: int) -> None:
         if self.is_spinning:
@@ -249,6 +259,25 @@ class SlotUI:
         self.last_yin_yang_count = self.pending_yin_yang_count
         self.last_awarded_free_spins = self.pending_awarded_free_spins
 
+        if self.pending_awarded_free_spins > 0:
+            self.show_overlay(
+                f"{self.pending_awarded_free_spins} FREE SPINS WON!",
+                (255, 215, 80),
+                2200,
+            )
+        elif self.pending_yin_yang_count >= 3:
+            self.show_overlay(
+                "YIN-YANG FEATURE!",
+                (210, 160, 255),
+                2000,
+            )
+        elif self.pending_total_win > 0:
+            self.show_overlay(
+                f"WIN {self.pending_total_win}",
+                (120, 220, 120),
+                1400,
+            )
+
         if self.pending_free_spin_mode:
             self.status_text = f"Freispiel beendet. Gewinn: {self.pending_total_win}"
         else:
@@ -262,6 +291,7 @@ class SlotUI:
         self.draw_grid()
         self.draw_controls()
         self.draw_bottom_panel()
+        self.draw_overlay()
         self.draw_help_text()
 
     def draw_title(self) -> None:
@@ -414,6 +444,33 @@ class SlotUI:
 
         self.screen.blit(row_1_surface, (80, 585))
         self.screen.blit(row_2_surface, (80, 620))
+
+    def draw_overlay(self) -> None:
+        current_time = pygame.time.get_ticks()
+
+        if not self.overlay_text or current_time > self.overlay_end_time:
+            return
+
+        overlay_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay_surface.fill((0, 0, 0, 110))
+        self.screen.blit(overlay_surface, (0, 0))
+
+        box_rect = pygame.Rect(180, 260, 640, 110)
+        pygame.draw.rect(self.screen, (25, 25, 35), box_rect, border_radius=18)
+        pygame.draw.rect(
+            self.screen, self.overlay_color, box_rect, width=4, border_radius=18
+        )
+
+        text_surface = self.title_font.render(
+            self.overlay_text, True, self.overlay_color
+        )
+        self.screen.blit(
+            text_surface,
+            (
+                box_rect.x + box_rect.width // 2 - text_surface.get_width() // 2,
+                box_rect.y + box_rect.height // 2 - text_surface.get_height() // 2,
+            ),
+        )
 
     def draw_help_text(self) -> None:
         help_text = "SPACE = Spin | Pfeil hoch/runter = Einsatz ändern | Maus: Buttons klickbar | ESC = Beenden"
