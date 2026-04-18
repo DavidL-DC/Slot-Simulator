@@ -133,6 +133,7 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
         total_win *= 3
         line_win *= 3
         scatter_win *= 3
+        yin_yang_win *= 3
 
     record_line_hits(stats, win_result["line_results"])
     record_scatter_distribution(stats, scatter_count)

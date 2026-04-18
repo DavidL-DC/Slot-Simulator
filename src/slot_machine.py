@@ -219,7 +219,7 @@ def play_yin_yang_feature(bet: int, initial_positions: list[tuple[int, int]]) ->
     grid: list[list[int | None]] = [[None for _ in range(REELS)] for _ in range(ROWS)]
 
     for row_index, col_index in initial_positions:
-        grid[row_index][col_index] = random.choice([1, 1, 1, 2, 2, 3]) * bet
+        grid[row_index][col_index] = random.choice([1, 1, 2]) * bet
 
     # Column Bonuses
     column_values = [250, 100, 100, 50, 150]
@@ -233,7 +233,7 @@ def play_yin_yang_feature(bet: int, initial_positions: list[tuple[int, int]]) ->
             for col_index in range(REELS):
                 if grid[row_index][col_index] is None:
                     # Chance für neues YinYang
-                    if random.random() < 0.15:  # 15% Chance
+                    if random.random() < 0.05:  # 15% Chance
                         grid[row_index][col_index] = random.randint(1, 5) * bet
                         new_symbol = True
 
@@ -257,7 +257,7 @@ def play_yin_yang_feature(bet: int, initial_positions: list[tuple[int, int]]) ->
     # Column Bonus
     for col_index in range(REELS):
         if all(grid[row_index][col_index] is not None for row_index in range(ROWS)):
-            total_win += column_values[col_index] * bet
+            total_win += column_values[col_index]
 
     return total_win
 
@@ -269,7 +269,7 @@ def evaluate_total_win(grid: list[list[Symbol]], bet: int) -> dict:
 
     yin_yang_count, yin_yang_win = evaluate_yin_yang_feature(grid, bet)
 
-    total_win = line_win + scatter_win
+    total_win = line_win + scatter_win + yin_yang_win
 
     return {
         "line_win": line_win,
