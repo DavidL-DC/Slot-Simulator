@@ -32,6 +32,13 @@ PANEL_COLOR = (35, 35, 50)
 CELL_COLOR = (220, 220, 230)
 TEXT_COLOR = (245, 245, 245)
 ACCENT_COLOR = (212, 175, 55)
+BUTTON_COLOR = (180, 50, 50)
+BUTTON_HOVER_COLOR = (210, 70, 70)
+BUTTON_DISABLED_COLOR = (90, 90, 90)
+SMALL_BUTTON_COLOR = (70, 120, 200)
+SMALL_BUTTON_HOVER_COLOR = (90, 140, 220)
+WIN_COLOR = (80, 180, 90)
+FEATURE_COLOR = (160, 90, 180)
 
 
 class SlotUI:
@@ -46,6 +53,7 @@ class SlotUI:
         self.label_font = pygame.font.SysFont("arial", 24)
         self.symbol_font = pygame.font.SysFont("arial", 28, bold=True)
         self.small_font = pygame.font.SysFont("arial", 20)
+        self.button_font = pygame.font.SysFont("arial", 28, bold=True)
 
         self.state = state
 
@@ -59,7 +67,7 @@ class SlotUI:
         self.last_scatter_count = 0
         self.last_yin_yang_count = 0
         self.last_awarded_free_spins = 0
-        self.status_text = "Drücke LEERTASTE für Spin"
+        self.status_text = "Drücke LEERTASTE oder SPIN"
 
         self.running = True
 
@@ -76,6 +84,10 @@ class SlotUI:
         self.pending_yin_yang_count = 0
         self.pending_awarded_free_spins = 0
         self.pending_free_spin_mode = False
+
+        self.spin_button_rect = pygame.Rect(830, 470, 140, 60)
+        self.bet_minus_rect = pygame.Rect(20, 470, 60, 50)
+        self.bet_plus_rect = pygame.Rect(90, 470, 60, 50)
 
     def run(self) -> None:
         while self.running:
@@ -95,15 +107,22 @@ class SlotUI:
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
-
                 elif event.key == pygame.K_SPACE:
                     self.try_spin()
-
                 elif event.key == pygame.K_UP:
                     self.change_bet(10)
-
                 elif event.key == pygame.K_DOWN:
                     self.change_bet(-10)
+
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                mouse_pos = pygame.mouse.get_pos()
+
+                if self.spin_button_rect.collidepoint(mouse_pos):
+                    self.try_spin()
+                elif self.bet_minus_rect.collidepoint(mouse_pos):
+                    self.change_bet(-10)
+                elif self.bet_plus_rect.collidepoint(mouse_pos):
+                    self.change_bet(10)
 
     def update_animation(self) -> None:
         if not self.is_spinning:
@@ -241,6 +260,7 @@ class SlotUI:
         self.draw_title()
         self.draw_top_panel()
         self.draw_grid()
+        self.draw_controls()
         self.draw_bottom_panel()
         self.draw_help_text()
 
@@ -276,9 +296,20 @@ class SlotUI:
                 y = GRID_Y + row_index * (CELL_HEIGHT + CELL_GAP)
 
                 cell_rect = pygame.Rect(x, y, CELL_WIDTH, CELL_HEIGHT)
-                pygame.draw.rect(self.screen, CELL_COLOR, cell_rect, border_radius=12)
+
+                border_color = PANEL_COLOR
+                inner_color = CELL_COLOR
+
+                if symbol.is_scatter:
+                    inner_color = (245, 225, 140)
+                elif symbol.name == "yin_yang":
+                    inner_color = (210, 180, 245)
+                elif symbol.is_wild:
+                    inner_color = (245, 170, 170)
+
+                pygame.draw.rect(self.screen, inner_color, cell_rect, border_radius=12)
                 pygame.draw.rect(
-                    self.screen, PANEL_COLOR, cell_rect, width=3, border_radius=12
+                    self.screen, border_color, cell_rect, width=3, border_radius=12
                 )
 
                 if self.is_spinning and not self.locked_reels[col_index]:
@@ -300,6 +331,63 @@ class SlotUI:
                     ),
                 )
 
+    def draw_controls(self) -> None:
+        self.draw_small_button(self.bet_minus_rect, "-", enabled=not self.is_spinning)
+        self.draw_small_button(self.bet_plus_rect, "+", enabled=not self.is_spinning)
+        self.draw_spin_button()
+
+        bet_label = self.small_font.render("Einsatz", True, TEXT_COLOR)
+        self.screen.blit(bet_label, (60, 440))
+
+    def draw_small_button(self, rect: pygame.Rect, text: str, enabled: bool) -> None:
+        mouse_pos = pygame.mouse.get_pos()
+        hovered = rect.collidepoint(mouse_pos)
+
+        if not enabled:
+            color = BUTTON_DISABLED_COLOR
+        elif hovered:
+            color = SMALL_BUTTON_HOVER_COLOR
+        else:
+            color = SMALL_BUTTON_COLOR
+
+        pygame.draw.rect(self.screen, color, rect, border_radius=10)
+
+        text_surface = self.button_font.render(text, True, TEXT_COLOR)
+        self.screen.blit(
+            text_surface,
+            (
+                rect.x + rect.width // 2 - text_surface.get_width() // 2,
+                rect.y + rect.height // 2 - text_surface.get_height() // 2,
+            ),
+        )
+
+    def draw_spin_button(self) -> None:
+        mouse_pos = pygame.mouse.get_pos()
+        hovered = self.spin_button_rect.collidepoint(mouse_pos)
+        enabled = not self.is_spinning and can_spin(self.state)
+
+        if not enabled:
+            color = BUTTON_DISABLED_COLOR
+        elif hovered:
+            color = BUTTON_HOVER_COLOR
+        else:
+            color = BUTTON_COLOR
+
+        pygame.draw.rect(self.screen, color, self.spin_button_rect, border_radius=14)
+
+        text_surface = self.button_font.render("SPIN", True, TEXT_COLOR)
+        self.screen.blit(
+            text_surface,
+            (
+                self.spin_button_rect.x
+                + self.spin_button_rect.width // 2
+                - text_surface.get_width() // 2,
+                self.spin_button_rect.y
+                + self.spin_button_rect.height // 2
+                - text_surface.get_height() // 2,
+            ),
+        )
+
     def draw_bottom_panel(self) -> None:
         panel_rect = pygame.Rect(60, 560, 880, 100)
         pygame.draw.rect(self.screen, PANEL_COLOR, panel_rect, border_radius=12)
@@ -315,13 +403,20 @@ class SlotUI:
         )
 
         row_1_surface = self.small_font.render(row_1, True, TEXT_COLOR)
-        row_2_surface = self.small_font.render(row_2, True, TEXT_COLOR)
+
+        status_color = TEXT_COLOR
+        if self.last_total_win > 0:
+            status_color = WIN_COLOR
+        if self.last_yin_yang_win > 0 or self.last_awarded_free_spins > 0:
+            status_color = FEATURE_COLOR
+
+        row_2_surface = self.small_font.render(row_2, True, status_color)
 
         self.screen.blit(row_1_surface, (80, 585))
         self.screen.blit(row_2_surface, (80, 620))
 
     def draw_help_text(self) -> None:
-        help_text = "SPACE = Spin | Pfeil hoch/runter = Einsatz ändern | ESC = Beenden"
+        help_text = "SPACE = Spin | Pfeil hoch/runter = Einsatz ändern | Maus: Buttons klickbar | ESC = Beenden"
         help_surface = self.small_font.render(help_text, True, TEXT_COLOR)
         self.screen.blit(
             help_surface,
