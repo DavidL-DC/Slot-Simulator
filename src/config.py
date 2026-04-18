@@ -120,6 +120,7 @@ REEL_STRIPS = [
         NINE,
         TEN,
         HOUSE,
+        COIN,
         JACK,
         QUEEN,
         KING,

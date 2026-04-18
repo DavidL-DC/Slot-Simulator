@@ -1,7 +1,16 @@
 from dataclasses import dataclass, field
 
-from game import GameState, add_free_spins, apply_bet, apply_win, consume_free_spin, is_free_spin
+from game import (
+    GameState,
+    add_free_spins,
+    apply_bet,
+    apply_win,
+    consume_free_spin,
+    is_free_spin,
+)
 from slot_machine import evaluate_total_win, spin_reels
+
+import random
 
 
 @dataclass
@@ -43,24 +52,21 @@ class SimulationStats:
         if self.total_spins == 0:
             return 0.0
         return self.winning_spins / self.total_spins * 100
-    
+
     def line_rtp(self) -> float:
         if self.total_bet == 0:
             return 0.0
         return self.total_line_win / self.total_bet * 100
-
 
     def scatter_rtp(self) -> float:
         if self.total_bet == 0:
             return 0.0
         return self.total_scatter_win / self.total_bet * 100
 
-
     def base_game_rtp(self) -> float:
         if self.total_bet == 0:
             return 0.0
         return self.base_game_win / self.total_bet * 100
-
 
     def free_spin_rtp(self) -> float:
         if self.total_bet == 0:
@@ -113,6 +119,19 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
     awarded_free_spins = win_result["awarded_free_spins"]
     scatter_count = win_result["scatter_count"]
 
+    if free_spin_mode:
+        total_win *= 3
+        line_win *= 3
+        scatter_win *= 3
+
+    yin_yang_count = sum(
+        1 for row in grid for symbol in row if symbol.name == "yin_yang"
+    )
+
+    if yin_yang_count >= 3:
+        bonus = state.current_bet * random.randint(10, 70)
+        total_win += bonus
+
     record_line_hits(stats, win_result["line_results"])
     record_scatter_distribution(stats, scatter_count)
 
@@ -130,7 +149,7 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
     stats.total_line_win += line_win
     stats.total_scatter_win += scatter_win
 
-    if free_spin_mode:
+    if free_spin_mode or yin_yang_count >= 3:
         stats.free_spin_win += total_win
         stats.free_spin_line_win += line_win
         stats.free_spin_scatter_win += scatter_win
@@ -140,7 +159,9 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
         stats.base_game_scatter_win += scatter_win
 
 
-def run_simulation(start_balance: int, bet: int, base_game_spins: int) -> SimulationStats:
+def run_simulation(
+    start_balance: int, bet: int, base_game_spins: int
+) -> SimulationStats:
     state = GameState(balance=start_balance, current_bet=bet)
     stats = SimulationStats()
 

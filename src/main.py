@@ -189,10 +189,13 @@ def try_change_bet(state: GameState, user_input: str) -> bool:
         print(f"Neuer Einsatz: {state.current_bet}")
     else:
         print("Ungültiger Einsatz.")
-        print("Der Einsatz muss größer als 0 und kleiner oder gleich dem aktuellen Guthaben sein.")
+        print(
+            "Der Einsatz muss größer als 0 und kleiner oder gleich dem aktuellen Guthaben sein."
+        )
 
     print()
     return True
+
 
 def try_run_simulation(state: GameState, user_input: str) -> bool:
     parts = user_input.split()
@@ -284,10 +287,10 @@ def run_game_loop(state: GameState) -> None:
 
 
 def main() -> None:
-    """ print_game_info()
+    """print_game_info()
     print()
 
-    run_all_tests() """
+    run_all_tests()"""
 
     state = GameState(balance=START_BALANCE, current_bet=DEFAULT_BET)
     run_game_loop(state)
