@@ -1,3 +1,4 @@
+import random
 import pygame
 
 from game import (
@@ -10,6 +11,7 @@ from game import (
     is_free_spin,
 )
 from slot_machine import evaluate_total_win, spin_reels
+from symbols import ALL_SYMBOLS, Symbol
 
 
 WINDOW_WIDTH = 1000
@@ -30,8 +32,6 @@ PANEL_COLOR = (35, 35, 50)
 CELL_COLOR = (220, 220, 230)
 TEXT_COLOR = (245, 245, 245)
 ACCENT_COLOR = (212, 175, 55)
-BUTTON_COLOR = (70, 120, 200)
-BUTTON_DISABLED_COLOR = (90, 90, 90)
 
 
 class SlotUI:
@@ -49,7 +49,9 @@ class SlotUI:
 
         self.state = state
 
-        self.current_grid = spin_reels()
+        self.current_grid = self.create_random_grid()
+        self.final_grid = self.current_grid
+
         self.last_total_win = 0
         self.last_line_win = 0
         self.last_scatter_win = 0
@@ -61,9 +63,24 @@ class SlotUI:
 
         self.running = True
 
+        self.is_spinning = False
+        self.spin_start_time = 0
+        self.reel_stop_times = [0, 0, 0, 0, 0]
+        self.locked_reels = [False, False, False, False, False]
+
+        self.pending_total_win = 0
+        self.pending_line_win = 0
+        self.pending_scatter_win = 0
+        self.pending_yin_yang_win = 0
+        self.pending_scatter_count = 0
+        self.pending_yin_yang_count = 0
+        self.pending_awarded_free_spins = 0
+        self.pending_free_spin_mode = False
+
     def run(self) -> None:
         while self.running:
             self.handle_events()
+            self.update_animation()
             self.draw()
             pygame.display.flip()
             self.clock.tick(60)
@@ -88,7 +105,42 @@ class SlotUI:
                 elif event.key == pygame.K_DOWN:
                     self.change_bet(-10)
 
+    def update_animation(self) -> None:
+        if not self.is_spinning:
+            return
+
+        current_time = pygame.time.get_ticks()
+
+        for reel_index in range(GRID_COLS):
+            if self.locked_reels[reel_index]:
+                continue
+
+            if current_time >= self.reel_stop_times[reel_index]:
+                self.locked_reels[reel_index] = True
+
+                for row_index in range(GRID_ROWS):
+                    self.current_grid[row_index][reel_index] = self.final_grid[
+                        row_index
+                    ][reel_index]
+            else:
+                for row_index in range(GRID_ROWS):
+                    self.current_grid[row_index][reel_index] = random.choice(
+                        ALL_SYMBOLS
+                    )
+
+        if all(self.locked_reels):
+            self.finish_spin()
+
+    def create_random_grid(self) -> list[list[Symbol]]:
+        return [
+            [random.choice(ALL_SYMBOLS) for _ in range(GRID_COLS)]
+            for _ in range(GRID_ROWS)
+        ]
+
     def change_bet(self, delta: int) -> None:
+        if self.is_spinning:
+            return
+
         new_bet = self.state.current_bet + delta
 
         if new_bet <= 0:
@@ -109,19 +161,25 @@ class SlotUI:
         self.status_text = f"Einsatz geändert auf {self.state.current_bet}"
 
     def try_spin(self) -> None:
+        if self.is_spinning:
+            return
+
         if not can_spin(self.state):
             self.status_text = "Nicht genug Guthaben für einen Spin."
             return
 
         free_spin_mode = is_free_spin(self.state)
+        self.pending_free_spin_mode = free_spin_mode
 
         if free_spin_mode:
             consume_free_spin(self.state)
+            self.status_text = "Freispiel läuft..."
         else:
             apply_bet(self.state)
+            self.status_text = "Walzen drehen..."
 
-        self.current_grid = spin_reels()
-        win_result = evaluate_total_win(self.current_grid, self.state.current_bet)
+        self.final_grid = spin_reels()
+        win_result = evaluate_total_win(self.final_grid, self.state.current_bet)
 
         total_win = win_result["total_win"]
         line_win = win_result["line_win"]
@@ -134,23 +192,48 @@ class SlotUI:
             scatter_win *= 3
             yin_yang_win *= 3
 
-        if win_result["awarded_free_spins"] > 0:
-            add_free_spins(self.state, win_result["awarded_free_spins"])
+        self.pending_total_win = total_win
+        self.pending_line_win = line_win
+        self.pending_scatter_win = scatter_win
+        self.pending_yin_yang_win = yin_yang_win
+        self.pending_scatter_count = win_result["scatter_count"]
+        self.pending_yin_yang_count = win_result["yin_yang_count"]
+        self.pending_awarded_free_spins = win_result["awarded_free_spins"]
 
-        apply_win(self.state, total_win)
+        self.current_grid = self.create_random_grid()
 
-        self.last_total_win = total_win
-        self.last_line_win = line_win
-        self.last_scatter_win = scatter_win
-        self.last_yin_yang_win = yin_yang_win
-        self.last_scatter_count = win_result["scatter_count"]
-        self.last_yin_yang_count = win_result["yin_yang_count"]
-        self.last_awarded_free_spins = win_result["awarded_free_spins"]
+        self.is_spinning = True
+        self.spin_start_time = pygame.time.get_ticks()
+        self.locked_reels = [False, False, False, False, False]
 
-        if free_spin_mode:
-            self.status_text = f"Freispiel gespielt. Gewinn: {total_win}"
+        base_delay = 700
+        reel_delay = 250
+
+        self.reel_stop_times = [
+            self.spin_start_time + base_delay + reel_index * reel_delay
+            for reel_index in range(GRID_COLS)
+        ]
+
+    def finish_spin(self) -> None:
+        self.is_spinning = False
+
+        if self.pending_awarded_free_spins > 0:
+            add_free_spins(self.state, self.pending_awarded_free_spins)
+
+        apply_win(self.state, self.pending_total_win)
+
+        self.last_total_win = self.pending_total_win
+        self.last_line_win = self.pending_line_win
+        self.last_scatter_win = self.pending_scatter_win
+        self.last_yin_yang_win = self.pending_yin_yang_win
+        self.last_scatter_count = self.pending_scatter_count
+        self.last_yin_yang_count = self.pending_yin_yang_count
+        self.last_awarded_free_spins = self.pending_awarded_free_spins
+
+        if self.pending_free_spin_mode:
+            self.status_text = f"Freispiel beendet. Gewinn: {self.pending_total_win}"
         else:
-            self.status_text = f"Spin gespielt. Gewinn: {total_win}"
+            self.status_text = f"Spin beendet. Gewinn: {self.pending_total_win}"
 
     def draw(self) -> None:
         self.screen.fill(BACKGROUND_COLOR)
@@ -197,6 +280,14 @@ class SlotUI:
                 pygame.draw.rect(
                     self.screen, PANEL_COLOR, cell_rect, width=3, border_radius=12
                 )
+
+                if self.is_spinning and not self.locked_reels[col_index]:
+                    inner_rect = pygame.Rect(
+                        x + 8, y + 8, CELL_WIDTH - 16, CELL_HEIGHT - 16
+                    )
+                    pygame.draw.rect(
+                        self.screen, (180, 190, 210), inner_rect, border_radius=10
+                    )
 
                 symbol_surface = self.symbol_font.render(
                     symbol.display, True, (30, 30, 40)
