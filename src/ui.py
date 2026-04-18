@@ -70,6 +70,7 @@ class SlotUI:
         self.last_yin_yang_feature_result = None
         self.status_text = "Drücke LEERTASTE oder SPIN"
         self.overlay_text = ""
+        self.overlay_subtext = ""
         self.overlay_color = ACCENT_COLOR
         self.overlay_end_time = 0
 
@@ -90,6 +91,17 @@ class SlotUI:
         self.pending_free_spin_mode = False
         self.pending_yin_yang_feature_result = None
 
+        self.feature_mode = False
+        self.feature_result = None
+        self.feature_spin_index = -1
+        self.feature_next_step_time = 0
+        self.feature_step_duration_ms = 900
+
+        self.feature_display_grid = None
+        self.feature_display_columns = None
+        self.feature_display_spins_left = 0
+        self.feature_display_new_positions = []
+
         self.spin_button_rect = pygame.Rect(830, 470, 140, 60)
         self.bet_minus_rect = pygame.Rect(20, 470, 60, 50)
         self.bet_plus_rect = pygame.Rect(90, 470, 60, 50)
@@ -98,6 +110,7 @@ class SlotUI:
         while self.running:
             self.handle_events()
             self.update_animation()
+            self.update_feature_playback()
             self.draw()
             pygame.display.flip()
             self.clock.tick(60)
@@ -166,11 +179,54 @@ class SlotUI:
         ]
 
     def show_overlay(
-        self, text: str, color: tuple[int, int, int], duration_ms: int = 1800
+        self,
+        text: str,
+        color: tuple[int, int, int],
+        duration_ms: int = 1800,
+        subtext: str = "",
     ) -> None:
         self.overlay_text = text
         self.overlay_color = color
         self.overlay_end_time = pygame.time.get_ticks() + duration_ms
+        self.overlay_subtext = subtext
+
+    def start_yin_yang_feature_playback(self, feature_result) -> None:
+        self.feature_mode = True
+        self.feature_result = feature_result
+        self.feature_spin_index = -1
+        self.feature_next_step_time = pygame.time.get_ticks() + 700
+        self.feature_display_grid = [
+            row.copy() for row in feature_result.start_grid_values
+        ]
+        self.feature_display_columns = feature_result.final_column_values.copy()
+        self.feature_display_spins_left = 3
+        self.feature_display_new_positions = []
+
+    def update_feature_playback(self) -> None:
+        if not self.feature_mode or self.feature_result is None:
+            return
+
+        current_time = pygame.time.get_ticks()
+
+        if current_time < self.feature_next_step_time:
+            return
+
+        self.feature_spin_index += 1
+
+        if self.feature_spin_index >= len(self.feature_result.spins):
+            self.feature_mode = False
+            self.feature_result = None
+            self.feature_display_new_positions = []
+            return
+
+        current_spin = self.feature_result.spins[self.feature_spin_index]
+
+        self.feature_display_grid = [row.copy() for row in current_spin.grid_values]
+        self.feature_display_columns = current_spin.column_values.copy()
+        self.feature_display_spins_left = current_spin.spins_left_after
+        self.feature_display_new_positions = current_spin.new_positions.copy()
+
+        self.feature_next_step_time = current_time + self.feature_step_duration_ms
 
     def change_bet(self, delta: int) -> None:
         if self.is_spinning:
@@ -281,7 +337,13 @@ class SlotUI:
         self.last_scatter_win = 0
         self.last_awarded_free_spins = 0
         self.status_text = f"DEBUG: Yin-Yang-Feature Gewinn {result['total_win']}"
-        self.show_overlay("YIN-YANG FEATURE!", (210, 160, 255), 2000)
+        self.show_overlay(
+            "YIN-YANG FEATURE!",
+            (210, 160, 255),
+            2200,
+            subtext=f"Feature win: {result['total_win']}",
+        )
+        self.start_yin_yang_feature_playback(result["yin_yang_feature_result"])
 
     def finish_spin(self) -> None:
         self.is_spinning = False
@@ -305,14 +367,21 @@ class SlotUI:
                 f"{self.pending_awarded_free_spins} FREE SPINS WON!",
                 (255, 215, 80),
                 2200,
+                subtext="Coin Feature triggered",
             )
-        elif self.pending_yin_yang_count >= 3:
+
+        if (
+            self.pending_yin_yang_count >= 3
+            and self.pending_yin_yang_feature_result is not None
+        ):
             self.show_overlay(
                 "YIN-YANG FEATURE!",
                 (210, 160, 255),
-                2000,
+                1800,
+                subtext=f"Feature win: {self.pending_yin_yang_win}",
             )
-        elif self.pending_total_win > 0:
+            self.start_yin_yang_feature_playback(self.pending_yin_yang_feature_result)
+        elif self.pending_total_win > 0 and self.pending_awarded_free_spins == 0:
             self.show_overlay(
                 f"WIN {self.pending_total_win}",
                 (120, 220, 120),
@@ -333,6 +402,7 @@ class SlotUI:
         self.draw_controls()
         self.draw_bottom_panel()
         self.draw_overlay()
+        self.draw_yin_yang_feature_board()
         self.draw_help_text()
 
     def draw_title(self) -> None:
@@ -496,7 +566,7 @@ class SlotUI:
         overlay_surface.fill((0, 0, 0, 110))
         self.screen.blit(overlay_surface, (0, 0))
 
-        box_rect = pygame.Rect(180, 260, 640, 110)
+        box_rect = pygame.Rect(180, 260, 640, 140)
         pygame.draw.rect(self.screen, (25, 25, 35), box_rect, border_radius=18)
         pygame.draw.rect(
             self.screen, self.overlay_color, box_rect, width=4, border_radius=18
@@ -509,9 +579,137 @@ class SlotUI:
             text_surface,
             (
                 box_rect.x + box_rect.width // 2 - text_surface.get_width() // 2,
-                box_rect.y + box_rect.height // 2 - text_surface.get_height() // 2,
+                box_rect.y + 25,
             ),
         )
+
+        if self.overlay_subtext:
+            subtext_surface = self.label_font.render(
+                self.overlay_subtext, True, TEXT_COLOR
+            )
+            self.screen.blit(
+                subtext_surface,
+                (
+                    box_rect.x + box_rect.width // 2 - subtext_surface.get_width() // 2,
+                    box_rect.y + 82,
+                ),
+            )
+
+    def draw_yin_yang_feature_board(self) -> None:
+        if (
+            not self.feature_mode
+            or self.feature_display_grid is None
+            or self.feature_display_columns is None
+        ):
+            return
+
+        overlay_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay_surface.fill((0, 0, 0, 170))
+        self.screen.blit(overlay_surface, (0, 0))
+
+        board_rect = pygame.Rect(120, 110, 760, 500)
+        pygame.draw.rect(self.screen, (28, 24, 40), board_rect, border_radius=18)
+        pygame.draw.rect(
+            self.screen, (210, 160, 255), board_rect, width=4, border_radius=18
+        )
+
+        title_surface = self.title_font.render(
+            "YIN-YANG FEATURE", True, (220, 180, 255)
+        )
+        self.screen.blit(
+            title_surface,
+            (board_rect.centerx - title_surface.get_width() // 2, 130),
+        )
+
+        info_text = f"Respins left: {self.feature_display_spins_left}"
+        info_surface = self.label_font.render(info_text, True, TEXT_COLOR)
+        self.screen.blit(
+            info_surface,
+            (board_rect.centerx - info_surface.get_width() // 2, 175),
+        )
+
+        feature_grid_x = 200
+        feature_grid_y = 250
+        feature_cell_w = 90
+        feature_cell_h = 80
+        feature_gap = 12
+
+        for col_index, value in enumerate(self.feature_display_columns):
+            x = feature_grid_x + col_index * (feature_cell_w + feature_gap)
+            y = feature_grid_y - 50
+
+            col_rect = pygame.Rect(x, y, feature_cell_w, 36)
+            pygame.draw.rect(self.screen, (85, 55, 110), col_rect, border_radius=10)
+            pygame.draw.rect(
+                self.screen, (220, 180, 255), col_rect, width=2, border_radius=10
+            )
+
+            value_surface = self.small_font.render(str(value), True, TEXT_COLOR)
+            self.screen.blit(
+                value_surface,
+                (
+                    x + feature_cell_w // 2 - value_surface.get_width() // 2,
+                    y + col_rect.height // 2 - value_surface.get_height() // 2,
+                ),
+            )
+
+        for row_index in range(3):
+            for col_index in range(5):
+                x = feature_grid_x + col_index * (feature_cell_w + feature_gap)
+                y = feature_grid_y + row_index * (feature_cell_h + feature_gap)
+
+                cell_rect = pygame.Rect(x, y, feature_cell_w, feature_cell_h)
+
+                value = self.feature_display_grid[row_index][col_index]
+                is_new = (row_index, col_index) in self.feature_display_new_positions
+
+                if value is None:
+                    fill_color = (60, 60, 70)
+                    border_color = (110, 110, 125)
+                else:
+                    fill_color = (205, 175, 240) if not is_new else (245, 210, 120)
+                    border_color = (235, 235, 250)
+
+                pygame.draw.rect(self.screen, fill_color, cell_rect, border_radius=12)
+                pygame.draw.rect(
+                    self.screen, border_color, cell_rect, width=3, border_radius=12
+                )
+
+                if value is not None:
+                    yin_surface = self.small_font.render("YIN", True, (30, 20, 40))
+                    value_surface = self.symbol_font.render(
+                        str(value), True, (30, 20, 40)
+                    )
+
+                    self.screen.blit(
+                        yin_surface,
+                        (
+                            x + feature_cell_w // 2 - yin_surface.get_width() // 2,
+                            y + 10,
+                        ),
+                    )
+                    self.screen.blit(
+                        value_surface,
+                        (
+                            x + feature_cell_w // 2 - value_surface.get_width() // 2,
+                            y + 35,
+                        ),
+                    )
+
+        if self.feature_result is not None:
+            summary = (
+                f"Symbols: {self.feature_result.symbol_total}    "
+                f"Columns: {self.feature_result.column_bonus_total}    "
+                f"Total: {self.feature_result.total_win}"
+            )
+            summary_surface = self.label_font.render(summary, True, (240, 230, 255))
+            self.screen.blit(
+                summary_surface,
+                (
+                    board_rect.centerx - summary_surface.get_width() // 2,
+                    540,
+                ),
+            )
 
     def draw_help_text(self) -> None:
         help_text = "SPACE = Spin | F = Freispiele | Y = Yin-Yang | Pfeil hoch/runter = Einsatz | Maus: Buttons | ESC = Beenden"
