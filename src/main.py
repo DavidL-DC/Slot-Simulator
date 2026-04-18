@@ -14,6 +14,7 @@ from slot_machine import (
     print_grid,
     print_line_results,
     print_scatter_result,
+    print_yin_yang_result,
     run_all_paylines_test_case,
     run_middle_row_test_case,
     run_payline_test_case,
@@ -154,7 +155,14 @@ def play_single_round(state: GameState) -> None:
         win_result["awarded_free_spins"],
     )
     print()
+    print_yin_yang_result(
+        win_result["yin_yang_count"],
+        win_result["yin_yang_win"],
+    )
+    print()
     print(f"Liniengewinn: {win_result['line_win']}")
+    print(f"Scatter-Gewinn: {win_result['scatter_win']}")
+    print(f"Yin-Yang-Gewinn: {win_result['yin_yang_win']}")
     print(f"Gesamtgewinn: {win_result['total_win']}")
 
     if win_result["awarded_free_spins"] > 0:

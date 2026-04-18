@@ -1,10 +1,20 @@
 import random
 
-from config import FREE_SPINS_AWARDED, PAYLINES, REELS, REEL_STRIPS, ROWS, SCATTER_PAYOUTS
+from config import (
+    FREE_SPINS_AWARDED,
+    PAYLINES,
+    REELS,
+    REEL_STRIPS,
+    ROWS,
+    SCATTER_PAYOUTS,
+    YIN_YANG_FEATURE_PAYOUTS,
+)
 from symbols import Symbol
 
 
-def get_visible_symbols(strip: list[Symbol], stop_index: int, window_size: int) -> list[Symbol]:
+def get_visible_symbols(
+    strip: list[Symbol], stop_index: int, window_size: int
+) -> list[Symbol]:
     visible_symbols: list[Symbol] = []
     strip_length = len(strip)
 
@@ -49,6 +59,7 @@ def get_line_symbols(grid: list[list[Symbol]], payline: list[int]) -> list[Symbo
         line_symbols.append(grid[row_index][reel_index])
 
     return line_symbols
+
 
 def analyze_line_symbols(line_symbols: list[Symbol]) -> dict:
     first_symbol = line_symbols[0]
@@ -99,6 +110,7 @@ def analyze_line_symbols(line_symbols: list[Symbol]) -> dict:
         "match_count": match_count,
         "win": 0,
     }
+
 
 def evaluate_line_symbols(line_symbols: list[Symbol], bet: int) -> int:
     analysis = analyze_line_symbols(line_symbols)
@@ -168,10 +180,95 @@ def get_awarded_free_spins(scatter_count: int) -> int:
     return FREE_SPINS_AWARDED.get(capped_count, 0)
 
 
+def count_yin_yang_symbols(grid: list[list[Symbol]]) -> int:
+    yin_yang_count = 0
+
+    for row in grid:
+        for symbol in row:
+            if symbol.name == "yin_yang":
+                yin_yang_count += 1
+
+    return yin_yang_count
+
+
+def evaluate_yin_yang_feature(grid: list[list[Symbol]], bet: int) -> tuple[int, int]:
+    initial_positions = get_yin_yang_positions(grid)
+    yin_yang_count = count_yin_yang_symbols(grid)
+
+    if yin_yang_count < 3:
+        return yin_yang_count, 0
+
+    feature_win = play_yin_yang_feature(bet, initial_positions)
+
+    return yin_yang_count, feature_win
+
+
+def get_yin_yang_positions(grid: list[list[Symbol]]) -> list[tuple[int, int]]:
+    positions: list[tuple[int, int]] = []
+
+    for row_index, row in enumerate(grid):
+        for col_index, symbol in enumerate(row):
+            if symbol.name == "yin_yang":
+                positions.append((row_index, col_index))
+
+    return positions
+
+
+def play_yin_yang_feature(bet: int, initial_positions: list[tuple[int, int]]) -> int:
+    # Grid: None oder Wert
+    grid: list[list[int | None]] = [[None for _ in range(REELS)] for _ in range(ROWS)]
+
+    for row_index, col_index in initial_positions:
+        grid[row_index][col_index] = random.choice([1, 1, 1, 2, 2, 3]) * bet
+
+    # Column Bonuses
+    column_values = [250, 100, 100, 50, 150]
+
+    spins_left = 3
+
+    while spins_left > 0:
+        new_symbol = False
+
+        for row_index in range(ROWS):
+            for col_index in range(REELS):
+                if grid[row_index][col_index] is None:
+                    # Chance für neues YinYang
+                    if random.random() < 0.15:  # 15% Chance
+                        grid[row_index][col_index] = random.randint(1, 5) * bet
+                        new_symbol = True
+
+        if new_symbol:
+            spins_left = 3
+
+            # Scaling: Column Values erhöhen
+            column_values = [int(v * 1.2) for v in column_values]
+        else:
+            spins_left -= 1
+
+    # Auszahlung berechnen
+    total_win = 0
+
+    # YinYang Werte
+    for row_index in range(ROWS):
+        for col_index in range(REELS):
+            if grid[row_index][col_index] is not None:
+                total_win += grid[row_index][col_index] or 0
+
+    # Column Bonus
+    for col_index in range(REELS):
+        if all(grid[row_index][col_index] is not None for row_index in range(ROWS)):
+            total_win += column_values[col_index] * bet
+
+    return total_win
+
+
 def evaluate_total_win(grid: list[list[Symbol]], bet: int) -> dict:
     line_win, line_results = evaluate_all_paylines(grid, bet)
     scatter_count, scatter_win = evaluate_scatters(grid, bet)
     awarded_free_spins = get_awarded_free_spins(scatter_count)
+
+    yin_yang_count, yin_yang_win = evaluate_yin_yang_feature(grid, bet)
+
     total_win = line_win + scatter_win
 
     return {
@@ -180,6 +277,8 @@ def evaluate_total_win(grid: list[list[Symbol]], bet: int) -> dict:
         "scatter_count": scatter_count,
         "scatter_win": scatter_win,
         "awarded_free_spins": awarded_free_spins,
+        "yin_yang_count": yin_yang_count,
+        "yin_yang_win": yin_yang_win,
         "total_win": total_win,
     }
 
@@ -195,14 +294,24 @@ def print_line_results(line_results: list[dict]) -> None:
         )
 
 
-def print_scatter_result(scatter_count: int, scatter_win: int, awarded_free_spins: int) -> None:
+def print_scatter_result(
+    scatter_count: int, scatter_win: int, awarded_free_spins: int
+) -> None:
     print("=== SCATTER-AUSWERTUNG ===")
     print(f"Scatter-Anzahl: {scatter_count}")
     print(f"Scatter-Gewinn: {scatter_win}")
     print(f"Gewonnene Freispiele: {awarded_free_spins}")
 
 
-def run_middle_row_test_case(name: str, grid: list[list[Symbol]], bet: int, expected_win: int) -> bool:
+def print_yin_yang_result(yin_yang_count: int, yin_yang_win: int) -> None:
+    print("=== YIN-YANG-AUSWERTUNG ===")
+    print(f"Yin-Yang-Anzahl: {yin_yang_count}")
+    print(f"Yin-Yang-Gewinn: {yin_yang_win}")
+
+
+def run_middle_row_test_case(
+    name: str, grid: list[list[Symbol]], bet: int, expected_win: int
+) -> bool:
     print(f"=== TEST MITTLERE REIHE: {name} ===")
     print_grid(grid)
     actual_win = evaluate_middle_row(grid, bet)

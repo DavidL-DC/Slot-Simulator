@@ -43,6 +43,10 @@ class SimulationStats:
     line_hit_wins: dict[str, int] = field(default_factory=dict)
     scatter_count_distribution: dict[int, int] = field(default_factory=dict)
 
+    total_yin_yang_win: int = 0
+    base_game_yin_yang_win: int = 0
+    free_spin_yin_yang_win: int = 0
+
     def rtp(self) -> float:
         if self.total_bet == 0:
             return 0.0
@@ -62,6 +66,11 @@ class SimulationStats:
         if self.total_bet == 0:
             return 0.0
         return self.total_scatter_win / self.total_bet * 100
+
+    def yin_yang_rtp(self) -> float:
+        if self.total_bet == 0:
+            return 0.0
+        return self.total_yin_yang_win / self.total_bet * 100
 
     def base_game_rtp(self) -> float:
         if self.total_bet == 0:
@@ -116,6 +125,7 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
     total_win = win_result["total_win"]
     line_win = win_result["line_win"]
     scatter_win = win_result["scatter_win"]
+    yin_yang_win = win_result["yin_yang_win"]
     awarded_free_spins = win_result["awarded_free_spins"]
     scatter_count = win_result["scatter_count"]
 
@@ -123,14 +133,6 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
         total_win *= 3
         line_win *= 3
         scatter_win *= 3
-
-    yin_yang_count = sum(
-        1 for row in grid for symbol in row if symbol.name == "yin_yang"
-    )
-
-    if yin_yang_count >= 3:
-        bonus = state.current_bet * random.randint(10, 70)
-        total_win += bonus
 
     record_line_hits(stats, win_result["line_results"])
     record_scatter_distribution(stats, scatter_count)
@@ -148,15 +150,18 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
     stats.total_win += total_win
     stats.total_line_win += line_win
     stats.total_scatter_win += scatter_win
+    stats.total_yin_yang_win += yin_yang_win
 
-    if free_spin_mode or yin_yang_count >= 3:
+    if free_spin_mode:
         stats.free_spin_win += total_win
         stats.free_spin_line_win += line_win
         stats.free_spin_scatter_win += scatter_win
+        stats.free_spin_yin_yang_win += yin_yang_win
     else:
         stats.base_game_win += total_win
         stats.base_game_line_win += line_win
         stats.base_game_scatter_win += scatter_win
+        stats.base_game_yin_yang_win += yin_yang_win
 
 
 def run_simulation(
@@ -216,6 +221,7 @@ def print_simulation_stats(stats: SimulationStats) -> None:
     print("=== RTP AUFSCHLÜSSELUNG ===")
     print(f"Linien RTP: {stats.line_rtp():.2f}%")
     print(f"Scatter RTP: {stats.scatter_rtp():.2f}%")
+    print(f"Yin-Yang RTP: {stats.yin_yang_rtp():.2f}%")
     print()
     print(f"Basis-Spiel RTP: {stats.base_game_rtp():.2f}%")
     print(f"Freispiel RTP: {stats.free_spin_rtp():.2f}%")
@@ -233,12 +239,16 @@ def print_simulation_stats(stats: SimulationStats) -> None:
     print("=== DETAIL GEWINNE ===")
     print(f"Liniengewinn gesamt: {stats.total_line_win}")
     print(f"Scattergewinn gesamt: {stats.total_scatter_win}")
+    print(f"Yin-Yang-Gewinn gesamt: {stats.total_yin_yang_win}")
     print()
     print(f"Basis-Spiel Liniengewinn: {stats.base_game_line_win}")
     print(f"Freispiel Liniengewinn: {stats.free_spin_line_win}")
     print()
     print(f"Basis-Spiel Scattergewinn: {stats.base_game_scatter_win}")
     print(f"Freispiel Scattergewinn: {stats.free_spin_scatter_win}")
+    print()
+    print(f"Basis-Spiel Yin-Yang-Gewinn: {stats.base_game_yin_yang_win}")
+    print(f"Freispiel Yin-Yang-Gewinn: {stats.free_spin_yin_yang_win}")
     print()
     print_line_hit_stats(stats)
     print()

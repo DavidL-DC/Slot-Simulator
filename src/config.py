@@ -61,6 +61,12 @@ FREE_SPINS_AWARDED = {
     5: 12,
 }
 
+YIN_YANG_FEATURE_PAYOUTS = {
+    3: (10, 30),
+    4: (25, 60),
+    5: (50, 120),
+}
+
 REEL_STRIPS = [
     [
         NINE,
