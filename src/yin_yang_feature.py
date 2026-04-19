@@ -12,6 +12,9 @@ class YinYangFeatureSpin:
     column_values: list[int]
     new_positions: list[tuple[int, int]]
     spins_left_after: int
+    completed_columns: list[int]
+    grand_column_index: int | None
+    grand_activated: bool
 
 
 @dataclass
@@ -23,6 +26,7 @@ class YinYangFeatureResult:
     final_grid_values: list[list[int | None]]
     final_column_values: list[int]
     completed_columns: list[int]
+    grand_column_index: int | None
     symbol_total: int
     column_bonus_total: int
     total_win: int
@@ -46,11 +50,6 @@ def get_random_respin_value(bet: int) -> int:
     return multiplier * bet
 
 
-def increase_column_values(column_values: list[int]) -> list[int]:
-    increases = [150, 150, 50, 100, 150]
-    return [value + increase for value, increase in zip(column_values, increases)]
-
-
 def get_completed_columns(grid: list[list[int | None]]) -> list[int]:
     completed_columns: list[int] = []
 
@@ -59,6 +58,22 @@ def get_completed_columns(grid: list[list[int | None]]) -> list[int]:
             completed_columns.append(col_index)
 
     return completed_columns
+
+
+def increase_column_values(
+    column_values: list[int],
+    completed_columns: list[int],
+) -> list[int]:
+    new_values: list[int] = []
+
+    for col_index, value in enumerate(column_values):
+        if col_index in completed_columns:
+            new_values.append(value)
+        else:
+            increase = random.choice([50, 50, 100, 150])
+            new_values.append(value + increase)
+
+    return new_values
 
 
 def calculate_symbol_total(grid: list[list[int | None]]) -> int:
@@ -70,6 +85,40 @@ def calculate_symbol_total(grid: list[list[int | None]]) -> int:
                 total += value
 
     return total
+
+
+def count_filled_positions(grid: list[list[int | None]]) -> int:
+    filled = 0
+
+    for row in grid:
+        for value in row:
+            if value is not None:
+                filled += 1
+
+    return filled
+
+
+def maybe_activate_grand(
+    grid: list[list[int | None]],
+    current_grand_column_index: int | None,
+) -> int | None:
+    if current_grand_column_index is not None:
+        return current_grand_column_index
+
+    filled_count = count_filled_positions(grid)
+
+    if filled_count < 10:
+        return None
+
+    completed_columns = get_completed_columns(grid)
+    available_columns = [
+        col_index for col_index in range(REELS) if col_index not in completed_columns
+    ]
+
+    if not available_columns:
+        return None
+
+    return random.choice(available_columns)
 
 
 def play_yin_yang_feature(
@@ -88,6 +137,7 @@ def play_yin_yang_feature(
 
     spins_left = 3
     spins: list[YinYangFeatureSpin] = []
+    grand_column_index: int | None = None
 
     while spins_left > 0:
         new_positions: list[tuple[int, int]] = []
@@ -99,11 +149,18 @@ def play_yin_yang_feature(
                         grid[row_index][col_index] = get_random_respin_value(bet)
                         new_positions.append((row_index, col_index))
 
+        completed_columns = get_completed_columns(grid)
+        grand_activated = False
+
         if new_positions:
             spins_left = 3
 
             for _ in new_positions:
-                column_values = increase_column_values(column_values)
+                column_values = increase_column_values(column_values, completed_columns)
+
+            previous_grand = grand_column_index
+            grand_column_index = maybe_activate_grand(grid, grand_column_index)
+            grand_activated = previous_grand is None and grand_column_index is not None
         else:
             spins_left -= 1
 
@@ -113,14 +170,22 @@ def play_yin_yang_feature(
                 column_values=column_values.copy(),
                 new_positions=new_positions.copy(),
                 spins_left_after=spins_left,
+                completed_columns=completed_columns.copy(),
+                grand_column_index=grand_column_index,
+                grand_activated=grand_activated,
             )
         )
 
     completed_columns = get_completed_columns(grid)
     symbol_total = calculate_symbol_total(grid)
-    column_bonus_total = sum(
-        column_values[col_index] for col_index in completed_columns
-    )
+
+    column_bonus_total = 0
+    for col_index in completed_columns:
+        if grand_column_index == col_index:
+            column_bonus_total += 10000
+        else:
+            column_bonus_total += column_values[col_index]
+
     total_win = symbol_total + column_bonus_total
 
     return YinYangFeatureResult(
@@ -131,6 +196,7 @@ def play_yin_yang_feature(
         final_grid_values=copy_grid(grid),
         final_column_values=column_values.copy(),
         completed_columns=completed_columns,
+        grand_column_index=grand_column_index,
         symbol_total=symbol_total,
         column_bonus_total=column_bonus_total,
         total_win=total_win,

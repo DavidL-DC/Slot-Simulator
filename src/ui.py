@@ -118,6 +118,13 @@ class SlotUI:
         self.feature_completed_columns = []
         self.feature_grand_column_index = None
 
+        self.feature_spinning_cells: list[tuple[int, int]] = []
+        self.feature_current_completed_columns: list[int] = []
+        self.feature_current_grand_column_index = None
+
+        self.feature_grand_popup_text = ""
+        self.feature_grand_popup_end_time = 0
+
         self.spin_button_rect = pygame.Rect(830, 470, 140, 60)
         self.bet_minus_rect = pygame.Rect(20, 470, 60, 50)
         self.bet_plus_rect = pygame.Rect(90, 470, 60, 50)
@@ -249,14 +256,26 @@ class SlotUI:
         self.feature_waiting_for_input = True
         self.feature_finished_waiting = False
         self.feature_flash_until = 0
+
         self.feature_completed_columns = []
+        self.feature_current_completed_columns = []
         self.feature_grand_column_index = None
+        self.feature_current_grand_column_index = None
+
+        self.feature_spinning_cells = []
+        self.update_feature_spinning_cells()
+
+        self.feature_grand_popup_text = ""
+        self.feature_grand_popup_end_time = 0
 
     def update_feature_playback(self) -> None:
         if not self.feature_mode or self.feature_result is None:
             return
 
         current_time = pygame.time.get_ticks()
+
+        if self.feature_phase == "spins":
+            return
 
         if self.feature_phase == "countup":
             elapsed = current_time - self.feature_countup_start_time
@@ -272,13 +291,13 @@ class SlotUI:
                 self.feature_completed_columns = (
                     self.feature_result.completed_columns.copy()
                 )
-
-                if self.feature_result.completed_columns:
-                    self.feature_grand_column_index = random.choice(
-                        self.feature_result.completed_columns
-                    )
-                else:
-                    self.feature_grand_column_index = None
+                self.feature_current_completed_columns = (
+                    self.feature_result.completed_columns.copy()
+                )
+                self.feature_current_grand_column_index = (
+                    self.feature_result.grand_column_index
+                )
+                self.feature_grand_column_index = self.feature_result.grand_column_index
             return
 
     def advance_feature_playback(self) -> None:
@@ -292,6 +311,7 @@ class SlotUI:
                 self.feature_phase = "countup"
                 self.feature_countup_start_time = pygame.time.get_ticks()
                 self.feature_display_new_positions = []
+                self.feature_spinning_cells = []
                 self.feature_waiting_for_input = False
                 return
 
@@ -302,23 +322,46 @@ class SlotUI:
             self.feature_display_spins_left = current_spin.spins_left_after
             self.feature_display_new_positions = current_spin.new_positions.copy()
 
-            self.feature_completed_columns = []
-            if self.feature_spin_index == len(self.feature_result.spins) - 1:
-                self.feature_completed_columns = (
-                    self.feature_result.completed_columns.copy()
-                )
+            self.feature_current_completed_columns = (
+                current_spin.completed_columns.copy()
+            )
+            self.feature_completed_columns = current_spin.completed_columns.copy()
+            self.feature_current_grand_column_index = current_spin.grand_column_index
+            self.feature_grand_column_index = current_spin.grand_column_index
+
+            if current_spin.grand_activated:
+                self.feature_grand_popup_text = "GRAND JACKPOT ACTIVATED!"
+                self.feature_grand_popup_end_time = pygame.time.get_ticks() + 1800
 
             self.feature_flash_until = pygame.time.get_ticks() + 500
             self.feature_waiting_for_input = True
+            self.update_feature_spinning_cells()
             return
 
         if self.feature_phase == "done":
             self.feature_mode = False
             self.feature_result = None
             self.feature_display_new_positions = []
+            self.feature_spinning_cells = []
             self.feature_phase = "idle"
             self.feature_finished_waiting = False
             self.feature_waiting_for_input = False
+            self.feature_grand_popup_text = ""
+            self.feature_grand_popup_end_time = 0
+
+    def update_feature_spinning_cells(self) -> None:
+        if self.feature_display_grid is None:
+            self.feature_spinning_cells = []
+            return
+
+        spinning_cells: list[tuple[int, int]] = []
+
+        for row_index in range(3):
+            for col_index in range(5):
+                if self.feature_display_grid[row_index][col_index] is None:
+                    spinning_cells.append((row_index, col_index))
+
+        self.feature_spinning_cells = spinning_cells
 
     def change_bet(self, delta: int) -> None:
         if self.is_spinning:
@@ -737,23 +780,16 @@ class SlotUI:
             x = feature_grid_x + col_index * (feature_cell_w + feature_gap)
             y = feature_grid_y - 50
 
-            is_completed = col_index in self.feature_completed_columns
-            is_grand = (
-                self.feature_grand_column_index == col_index
-                and self.feature_phase == "done"
-            )
+            is_completed = col_index in self.feature_current_completed_columns
+            is_grand = self.feature_current_grand_column_index == col_index
 
-            if is_grand and pulse:
-                fill_color = (255, 235, 120)
+            if is_grand and is_completed:
+                fill_color = (255, 225, 110)
                 border_color = (255, 255, 220)
                 label = "GRAND"
-            elif is_completed and pulse:
-                fill_color = (235, 195, 60)
-                border_color = (255, 235, 170)
-                label = str(value)
             elif is_completed:
-                fill_color = (210, 170, 50)
-                border_color = (255, 225, 150)
+                fill_color = (220, 180, 60)
+                border_color = (255, 235, 170)
                 label = str(value)
             else:
                 fill_color = (85, 55, 110)
@@ -782,15 +818,19 @@ class SlotUI:
 
                 cell_rect = pygame.Rect(x, y, feature_cell_w, feature_cell_h)
 
+                spinning = (row_index, col_index) in self.feature_spinning_cells
                 value = self.feature_display_grid[row_index][col_index]
                 is_new = (row_index, col_index) in self.feature_display_new_positions
+                flashing = pygame.time.get_ticks() < self.feature_flash_until
 
                 if value is None:
-                    fill_color = (60, 60, 70)
-                    border_color = (110, 110, 125)
+                    if spinning:
+                        fill_color = (90, 90, 110) if pulse else (60, 60, 75)
+                        border_color = (150, 150, 180)
+                    else:
+                        fill_color = (60, 60, 70)
+                        border_color = (110, 110, 125)
                 else:
-                    flashing = pygame.time.get_ticks() < self.feature_flash_until
-
                     if is_new and flashing and pulse:
                         fill_color = (255, 240, 140)
                     elif is_new and flashing:
@@ -806,6 +846,16 @@ class SlotUI:
                 pygame.draw.rect(
                     self.screen, border_color, cell_rect, width=3, border_radius=12
                 )
+
+                if value is None and spinning:
+                    spin_surface = self.small_font.render("...", True, (230, 230, 240))
+                    self.screen.blit(
+                        spin_surface,
+                        (
+                            x + feature_cell_w // 2 - spin_surface.get_width() // 2,
+                            y + feature_cell_h // 2 - spin_surface.get_height() // 2,
+                        ),
+                    )
 
                 if value is not None:
                     yin_surface = self.small_font.render("YIN", True, (30, 20, 40))
@@ -863,6 +913,28 @@ class SlotUI:
 
         elif self.feature_phase == "done" and self.feature_finished_waiting:
             self.draw_feature_continue_button("CLOSE FEATURE")
+
+        current_time = pygame.time.get_ticks()
+        if (
+            self.feature_grand_popup_text
+            and current_time < self.feature_grand_popup_end_time
+        ):
+            popup_rect = pygame.Rect(250, 205, 500, 55)
+            pygame.draw.rect(self.screen, (255, 220, 100), popup_rect, border_radius=12)
+            pygame.draw.rect(
+                self.screen, (255, 255, 230), popup_rect, width=3, border_radius=12
+            )
+
+            popup_surface = self.label_font.render(
+                self.feature_grand_popup_text, True, (40, 30, 20)
+            )
+            self.screen.blit(
+                popup_surface,
+                (
+                    popup_rect.centerx - popup_surface.get_width() // 2,
+                    popup_rect.centery - popup_surface.get_height() // 2,
+                ),
+            )
 
     def draw_feature_continue_button(self, text: str) -> None:
         mouse_pos = pygame.mouse.get_pos()
