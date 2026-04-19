@@ -126,6 +126,8 @@ class SlotUI:
         self.feature_respin_animation_end_time = 0
         self.feature_pending_spin_result = None
 
+        self.feature_background_grid = None
+
         self.spin_button_rect = pygame.Rect(830, 470, 140, 60)
         self.bet_minus_rect = pygame.Rect(20, 470, 60, 50)
         self.bet_plus_rect = pygame.Rect(90, 470, 60, 50)
@@ -216,6 +218,30 @@ class SlotUI:
 
         return random.choice(pool)
 
+    def create_feature_background_grid(self) -> list[list[Symbol]]:
+        weighted_symbols = [
+            symbol
+            for symbol in ALL_SYMBOLS
+            if symbol.name
+            in {
+                "yin_yang",
+                "nine",
+                "ten",
+                "jack",
+                "queen",
+                "king",
+                "gong",
+                "house",
+                "lantern",
+                "vase",
+            }
+        ]
+
+        extra_yin = [symbol for symbol in ALL_SYMBOLS if symbol.name == "yin_yang"] * 4
+        pool = weighted_symbols + extra_yin
+
+        return [[random.choice(pool) for _ in range(5)] for _ in range(3)]
+
     def update_animation(self) -> None:
         if not self.is_spinning:
             return
@@ -268,6 +294,7 @@ class SlotUI:
         self.feature_display_grid = [
             row.copy() for row in feature_result.start_grid_values
         ]
+        self.feature_background_grid = self.create_feature_background_grid()
         self.feature_display_columns = feature_result.start_column_values.copy()
         self.feature_display_spins_left = 3
         self.feature_display_new_positions = []
@@ -360,6 +387,7 @@ class SlotUI:
             self.feature_result = None
             self.feature_display_new_positions = []
             self.feature_spinning_cells = []
+            self.feature_background_grid = None
             self.feature_phase = "idle"
             self.feature_finished_waiting = False
             self.feature_waiting_for_input = False
@@ -391,6 +419,16 @@ class SlotUI:
         self.feature_display_spins_left = current_spin.spins_left_after
         self.feature_display_new_positions = current_spin.new_positions.copy()
 
+        if self.feature_background_grid is None:
+            self.feature_background_grid = self.create_feature_background_grid()
+
+        for row_index in range(3):
+            for col_index in range(5):
+                if self.feature_display_grid[row_index][col_index] is None:
+                    self.feature_background_grid[row_index][
+                        col_index
+                    ] = self.get_feature_spin_symbol()
+
         self.feature_current_completed_columns = current_spin.completed_columns.copy()
         self.feature_current_grand_column_index = current_spin.grand_column_index
 
@@ -410,6 +448,9 @@ class SlotUI:
             self.feature_spin_symbols = []
             return
 
+        if self.feature_background_grid is None:
+            self.feature_background_grid = self.create_feature_background_grid()
+
         spinning_cells: list[tuple[int, int]] = []
         spin_symbols: list[tuple[tuple[int, int], Symbol]] = []
 
@@ -417,9 +458,9 @@ class SlotUI:
             for col_index in range(5):
                 if self.feature_display_grid[row_index][col_index] is None:
                     spinning_cells.append((row_index, col_index))
-                    spin_symbols.append(
-                        ((row_index, col_index), self.get_feature_spin_symbol())
-                    )
+                    symbol = self.get_feature_spin_symbol()
+                    spin_symbols.append(((row_index, col_index), symbol))
+                    self.feature_background_grid[row_index][col_index] = symbol
 
         self.feature_spinning_cells = spinning_cells
         self.feature_spin_symbols = spin_symbols
@@ -894,7 +935,7 @@ class SlotUI:
 
                 if value is None:
                     if spinning:
-                        fill_color = (90, 90, 110) if pulse else (60, 60, 75)
+                        fill_color = (60, 60, 75)
                         border_color = (150, 150, 180)
                     else:
                         fill_color = (60, 60, 70)
@@ -937,28 +978,31 @@ class SlotUI:
                         border_radius=10,
                     )
 
-                if value is None and spinning:
-                    spin_symbol = None
+                if value is None:
+                    display_symbol = None
 
-                    for position, symbol in self.feature_spin_symbols:
-                        if position == (row_index, col_index):
-                            spin_symbol = symbol
-                            break
+                    if self.feature_background_grid is not None:
+                        display_symbol = self.feature_background_grid[row_index][
+                            col_index
+                        ]
 
                     display_text = (
-                        spin_symbol.display if spin_symbol is not None else "YIN"
+                        display_symbol.display if display_symbol is not None else ""
                     )
 
-                    spin_surface = self.small_font.render(
-                        display_text, True, (230, 230, 240)
-                    )
-                    self.screen.blit(
-                        spin_surface,
-                        (
-                            x + feature_cell_w // 2 - spin_surface.get_width() // 2,
-                            y + feature_cell_h // 2 - spin_surface.get_height() // 2,
-                        ),
-                    )
+                    if display_text:
+                        spin_surface = self.small_font.render(
+                            display_text, True, (230, 230, 240)
+                        )
+                        self.screen.blit(
+                            spin_surface,
+                            (
+                                x + feature_cell_w // 2 - spin_surface.get_width() // 2,
+                                y
+                                + feature_cell_h // 2
+                                - spin_surface.get_height() // 2,
+                            ),
+                        )
 
                 if value is not None:
                     yin_surface = self.small_font.render("YIN", True, (30, 20, 40))
