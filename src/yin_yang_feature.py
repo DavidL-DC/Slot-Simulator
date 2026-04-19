@@ -18,6 +18,7 @@ class YinYangFeatureSpin:
 class YinYangFeatureResult:
     trigger_positions: list[tuple[int, int]]
     start_grid_values: list[list[int | None]]
+    start_column_values: list[int]
     spins: list[YinYangFeatureSpin]
     final_grid_values: list[list[int | None]]
     final_column_values: list[int]
@@ -83,6 +84,7 @@ def play_yin_yang_feature(
 
     start_grid_values = copy_grid(grid)
     column_values = [250, 100, 100, 50, 150]
+    start_column_values = column_values.copy()
 
     spins_left = 3
     spins: list[YinYangFeatureSpin] = []
@@ -124,6 +126,7 @@ def play_yin_yang_feature(
     return YinYangFeatureResult(
         trigger_positions=trigger_positions.copy(),
         start_grid_values=start_grid_values,
+        start_column_values=start_column_values,
         spins=spins,
         final_grid_values=copy_grid(grid),
         final_column_values=column_values.copy(),
