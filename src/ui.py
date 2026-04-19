@@ -125,6 +125,8 @@ class SlotUI:
         self.feature_grand_popup_text = ""
         self.feature_grand_popup_end_time = 0
 
+        self.feature_spin_symbols = []
+
         self.spin_button_rect = pygame.Rect(830, 470, 140, 60)
         self.bet_minus_rect = pygame.Rect(20, 470, 60, 50)
         self.bet_plus_rect = pygame.Rect(90, 470, 60, 50)
@@ -189,6 +191,30 @@ class SlotUI:
                     self.change_bet(-10)
                 elif self.bet_plus_rect.collidepoint(mouse_pos):
                     self.change_bet(10)
+
+    def get_feature_spin_symbol(self) -> Symbol:
+        weighted_symbols = [
+            symbol
+            for symbol in ALL_SYMBOLS
+            if symbol.name
+            in {
+                "yin_yang",
+                "nine",
+                "ten",
+                "jack",
+                "queen",
+                "king",
+                "gong",
+                "house",
+                "lantern",
+                "vase",
+            }
+        ]
+
+        extra_yin = [symbol for symbol in ALL_SYMBOLS if symbol.name == "yin_yang"] * 4
+        pool = weighted_symbols + extra_yin
+
+        return random.choice(pool)
 
     def update_animation(self) -> None:
         if not self.is_spinning:
@@ -275,6 +301,9 @@ class SlotUI:
         current_time = pygame.time.get_ticks()
 
         if self.feature_phase == "spins":
+            if self.feature_waiting_for_input:
+                if pygame.time.get_ticks() % 120 < 60:
+                    self.update_feature_spinning_cells()
             return
 
         if self.feature_phase == "countup":
@@ -352,16 +381,22 @@ class SlotUI:
     def update_feature_spinning_cells(self) -> None:
         if self.feature_display_grid is None:
             self.feature_spinning_cells = []
+            self.feature_spin_symbols = []
             return
 
         spinning_cells: list[tuple[int, int]] = []
+        spin_symbols: list[tuple[tuple[int, int], Symbol]] = []
 
         for row_index in range(3):
             for col_index in range(5):
                 if self.feature_display_grid[row_index][col_index] is None:
                     spinning_cells.append((row_index, col_index))
+                    spin_symbols.append(
+                        ((row_index, col_index), self.get_feature_spin_symbol())
+                    )
 
         self.feature_spinning_cells = spinning_cells
+        self.feature_spin_symbols = spin_symbols
 
     def change_bet(self, delta: int) -> None:
         if self.is_spinning:
@@ -783,9 +818,13 @@ class SlotUI:
             is_completed = col_index in self.feature_current_completed_columns
             is_grand = self.feature_current_grand_column_index == col_index
 
-            if is_grand and is_completed:
-                fill_color = (255, 225, 110)
-                border_color = (255, 255, 220)
+            if is_grand:
+                if is_completed:
+                    fill_color = (255, 225, 110)
+                    border_color = (255, 255, 220)
+                else:
+                    fill_color = (170, 90, 40)
+                    border_color = (255, 220, 140)
                 label = "GRAND"
             elif is_completed:
                 fill_color = (220, 180, 60)
@@ -822,6 +861,10 @@ class SlotUI:
                 value = self.feature_display_grid[row_index][col_index]
                 is_new = (row_index, col_index) in self.feature_display_new_positions
                 flashing = pygame.time.get_ticks() < self.feature_flash_until
+                is_completed_column = (
+                    col_index in self.feature_current_completed_columns
+                )
+                is_grand_column = self.feature_current_grand_column_index == col_index
 
                 if value is None:
                     if spinning:
@@ -840,15 +883,49 @@ class SlotUI:
                     else:
                         fill_color = (205, 175, 240)
 
-                    border_color = (235, 235, 250)
+                    if is_grand_column:
+                        border_color = (255, 240, 160)
+                    elif is_completed_column:
+                        border_color = (255, 220, 120)
+                    else:
+                        border_color = (235, 235, 250)
 
                 pygame.draw.rect(self.screen, fill_color, cell_rect, border_radius=12)
                 pygame.draw.rect(
                     self.screen, border_color, cell_rect, width=3, border_radius=12
                 )
 
+                if value is not None and is_completed_column:
+                    highlight_color = (255, 225, 120)
+                    if is_grand_column:
+                        highlight_color = (255, 245, 180)
+
+                    inner_highlight_rect = pygame.Rect(
+                        x + 4, y + 4, feature_cell_w - 8, feature_cell_h - 8
+                    )
+                    pygame.draw.rect(
+                        self.screen,
+                        highlight_color,
+                        inner_highlight_rect,
+                        width=2,
+                        border_radius=10,
+                    )
+
                 if value is None and spinning:
-                    spin_surface = self.small_font.render("...", True, (230, 230, 240))
+                    spin_symbol = None
+
+                    for position, symbol in self.feature_spin_symbols:
+                        if position == (row_index, col_index):
+                            spin_symbol = symbol
+                            break
+
+                    display_text = (
+                        spin_symbol.display if spin_symbol is not None else "YIN"
+                    )
+
+                    spin_surface = self.small_font.render(
+                        display_text, True, (230, 230, 240)
+                    )
                     self.screen.blit(
                         spin_surface,
                         (
