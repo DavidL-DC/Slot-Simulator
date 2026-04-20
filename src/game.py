@@ -7,6 +7,7 @@ class GameState:
     current_bet: int
     free_spins_remaining: int = 0
     total_free_spins_won: int = 0
+    collected_bulls: int = 0
 
 
 def can_spin(state: GameState) -> bool:

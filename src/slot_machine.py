@@ -180,6 +180,36 @@ def get_awarded_free_spins(scatter_count: int) -> int:
     capped_count = min(scatter_count, max(FREE_SPINS_AWARDED))
     return FREE_SPINS_AWARDED.get(capped_count, 0)
 
+def spin_reels_free_spins() -> list[list[Symbol]]:
+    columns: list[list[Symbol]] = []
+
+    for reel_index in range(REELS):
+        strip = [
+            symbol for symbol in REEL_STRIPS[reel_index]
+            if not symbol.is_scatter
+        ]
+
+        stop_index = random.randint(0, len(strip) - 1)
+        visible_column = get_visible_symbols(strip, stop_index, ROWS)
+        columns.append(visible_column)
+
+    grid: list[list[Symbol]] = []
+
+    for row_index in range(ROWS):
+        row: list[Symbol] = []
+        for reel_index in range(REELS):
+            row.append(columns[reel_index][row_index])
+        grid.append(row)
+
+    return grid
+
+def count_bulls(grid: list[list[Symbol]]) -> int:
+    count = 0
+    for row in grid:
+        for symbol in row:
+            if symbol.name == "bull":
+                count += 1
+    return count
 
 def count_yin_yang_symbols(grid: list[list[Symbol]]) -> int:
     yin_yang_count = 0

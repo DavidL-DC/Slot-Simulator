@@ -129,12 +129,6 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
     awarded_free_spins = win_result["awarded_free_spins"]
     scatter_count = win_result["scatter_count"]
 
-    if free_spin_mode:
-        total_win *= 3
-        line_win *= 3
-        scatter_win *= 3
-        yin_yang_win *= 3
-
     record_line_hits(stats, win_result["line_results"])
     record_scatter_distribution(stats, scatter_count)
 

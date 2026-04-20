@@ -10,7 +10,7 @@ from game import (
     consume_free_spin,
     is_free_spin,
 )
-from slot_machine import evaluate_total_win, spin_reels, trigger_debug_yin_yang_feature
+from slot_machine import evaluate_total_win, spin_reels, trigger_debug_yin_yang_feature, spin_reels_free_spins
 from symbols import ALL_SYMBOLS, Symbol
 
 
@@ -502,24 +502,30 @@ class SlotUI:
         if free_spin_mode:
             consume_free_spin(self.state)
             self.status_text = "Freispiel läuft..."
+            self.final_grid = spin_reels_free_spins()
         else:
             apply_bet(self.state)
             self.status_text = "Walzen drehen..."
+            self.final_grid = spin_reels()
 
         self.final_grid = spin_reels()
         win_result = evaluate_total_win(self.final_grid, self.state.current_bet)
+
+        # Freispiele: Bulls sammeln
+        if free_spin_mode:
+            bull_count = 0
+            for row in self.final_grid:
+                for symbol in row:
+                    if symbol.name == "bull":
+                        bull_count += 1
+
+            self.state.collected_bulls += bull_count
 
         total_win = win_result["total_win"]
         line_win = win_result["line_win"]
         scatter_win = win_result["scatter_win"]
         yin_yang_win = win_result["yin_yang_win"]
         yin_yang_feature_result = win_result["yin_yang_feature_result"]
-
-        if free_spin_mode:
-            total_win *= 3
-            line_win *= 3
-            scatter_win *= 3
-            yin_yang_win *= 3
 
         self.pending_total_win = total_win
         self.pending_line_win = line_win
@@ -543,6 +549,12 @@ class SlotUI:
             spin_start_time + base_delay + reel_index * reel_delay
             for reel_index in range(GRID_COLS)
         ]
+
+    def start_bull_feature(self) -> None:
+        print(f"BULL FEATURE START mit {self.state.collected_bulls} Bulls")
+
+        # TODO: später UI + Logik
+        self.state.collected_bulls = 0
 
     def debug_trigger_free_spins(self) -> None:
         if self.is_spinning:
@@ -629,6 +641,14 @@ class SlotUI:
             self.status_text = f"Freispiel beendet. Gewinn: {self.pending_total_win}"
         else:
             self.status_text = f"Spin beendet. Gewinn: {self.pending_total_win}"
+
+        # Freispiele beendet → Bull Feature starten
+        if (
+            self.pending_free_spin_mode
+            and self.state.free_spins_remaining == 0
+            and self.state.collected_bulls > 0
+        ):
+            self.start_bull_feature()
 
     def draw(self) -> None:
         self.screen.fill(BACKGROUND_COLOR)
