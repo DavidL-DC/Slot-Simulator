@@ -10,7 +10,7 @@ from game import (
     consume_free_spin,
     is_free_spin,
 )
-from slot_machine import evaluate_total_win, spin_reels, trigger_debug_yin_yang_feature, spin_reels_free_spins
+from slot_machine import (evaluate_total_win, spin_reels, trigger_debug_yin_yang_feature, spin_reels_free_spins, count_bulls)
 from symbols import ALL_SYMBOLS, Symbol
 
 
@@ -513,13 +513,7 @@ class SlotUI:
 
         # Freispiele: Bulls sammeln
         if free_spin_mode:
-            bull_count = 0
-            for row in self.final_grid:
-                for symbol in row:
-                    if symbol.name == "bull":
-                        bull_count += 1
-
-            self.state.collected_bulls += bull_count
+            self.state.collected_bulls += count_bulls(self.final_grid)
 
         total_win = win_result["total_win"]
         line_win = win_result["line_win"]
@@ -638,7 +632,7 @@ class SlotUI:
             )
 
         if self.pending_free_spin_mode:
-            self.status_text = f"Freispiel beendet. Gewinn: {self.pending_total_win}"
+            self.status_text = f"Freispiele beendet. Gewinn: {self.pending_total_win}"
         else:
             self.status_text = f"Spin beendet. Gewinn: {self.pending_total_win}"
 
@@ -648,6 +642,7 @@ class SlotUI:
             and self.state.free_spins_remaining == 0
             and self.state.collected_bulls > 0
         ):
+            self.status_text = f"Freispiele beendet - Bull Feature startet"
             self.start_bull_feature()
 
     def draw(self) -> None:
