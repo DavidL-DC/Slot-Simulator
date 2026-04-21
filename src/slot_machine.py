@@ -65,7 +65,7 @@ def get_line_symbols(grid: list[list[Symbol]], payline: list[int]) -> list[Symbo
 def analyze_line_symbols(line_symbols: list[Symbol]) -> dict:
     first_symbol = line_symbols[0]
 
-    if first_symbol.is_scatter:
+    if first_symbol.is_scatter or first_symbol.name == "yin_yang":
         return {
             "target_symbol": None,
             "match_count": 0,
@@ -75,7 +75,11 @@ def analyze_line_symbols(line_symbols: list[Symbol]) -> dict:
     if first_symbol.is_wild:
         target_symbol = None
         for symbol in line_symbols[1:]:
-            if not symbol.is_wild and not symbol.is_scatter:
+            if (
+                not symbol.is_wild
+                and not symbol.is_scatter
+                and not symbol.name == "yin_yang"
+            ):
                 target_symbol = symbol
                 break
 
@@ -91,7 +95,7 @@ def analyze_line_symbols(line_symbols: list[Symbol]) -> dict:
     match_count = 0
 
     for symbol in line_symbols:
-        if symbol.is_scatter:
+        if symbol.is_scatter or first_symbol.name == "yin_yang":
             break
 
         if symbol.name == target_symbol.name or symbol.is_wild:
@@ -180,13 +184,15 @@ def get_awarded_free_spins(scatter_count: int) -> int:
     capped_count = min(scatter_count, max(FREE_SPINS_AWARDED))
     return FREE_SPINS_AWARDED.get(capped_count, 0)
 
+
 def spin_reels_free_spins() -> list[list[Symbol]]:
     columns: list[list[Symbol]] = []
 
     for reel_index in range(REELS):
         strip = [
-            symbol for symbol in REEL_STRIPS[reel_index]
-            if not symbol.is_scatter
+            symbol
+            for symbol in REEL_STRIPS[reel_index]
+            if symbol.name not in {"coin", "credit", "collector"}
         ]
 
         stop_index = random.randint(0, len(strip) - 1)
@@ -203,6 +209,7 @@ def spin_reels_free_spins() -> list[list[Symbol]]:
 
     return grid
 
+
 def count_bulls(grid: list[list[Symbol]]) -> int:
     count = 0
     for row in grid:
@@ -210,6 +217,7 @@ def count_bulls(grid: list[list[Symbol]]) -> int:
             if symbol.name == "bull":
                 count += 1
     return count
+
 
 def count_yin_yang_symbols(grid: list[list[Symbol]]) -> int:
     yin_yang_count = 0

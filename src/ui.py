@@ -10,8 +10,17 @@ from game import (
     consume_free_spin,
     is_free_spin,
 )
-from slot_machine import (evaluate_total_win, spin_reels, trigger_debug_yin_yang_feature, spin_reels_free_spins, count_bulls)
+from slot_machine import (
+    evaluate_total_win,
+    spin_reels,
+    trigger_debug_yin_yang_feature,
+    spin_reels_free_spins,
+    count_bulls,
+)
 from symbols import ALL_SYMBOLS, Symbol
+
+from bull_feature import play_bull_feature
+from config import PAYLINES
 
 
 WINDOW_WIDTH = 1000
@@ -128,6 +137,9 @@ class SlotUI:
 
         self.feature_background_grid = None
 
+        self.bull_feature_mode = False
+        self.bull_feature_result = None
+
         self.spin_button_rect = pygame.Rect(830, 470, 140, 60)
         self.bet_minus_rect = pygame.Rect(20, 470, 60, 50)
         self.bet_plus_rect = pygame.Rect(90, 470, 60, 50)
@@ -164,6 +176,9 @@ class SlotUI:
                             and self.feature_finished_waiting
                         ):
                             self.advance_feature_playback()
+                    elif self.bull_feature_mode:
+                        self.bull_feature_mode = False
+                        self.bull_feature_result = None
                     else:
                         self.try_spin()
                 elif event.key == pygame.K_UP:
@@ -503,17 +518,13 @@ class SlotUI:
             consume_free_spin(self.state)
             self.status_text = "Freispiel läuft..."
             self.final_grid = spin_reels_free_spins()
+            self.state.collected_bulls += count_bulls(self.final_grid)
         else:
             apply_bet(self.state)
             self.status_text = "Walzen drehen..."
             self.final_grid = spin_reels()
 
-        self.final_grid = spin_reels()
         win_result = evaluate_total_win(self.final_grid, self.state.current_bet)
-
-        # Freispiele: Bulls sammeln
-        if free_spin_mode:
-            self.state.collected_bulls += count_bulls(self.final_grid)
 
         total_win = win_result["total_win"]
         line_win = win_result["line_win"]
@@ -545,9 +556,34 @@ class SlotUI:
         ]
 
     def start_bull_feature(self) -> None:
-        print(f"BULL FEATURE START mit {self.state.collected_bulls} Bulls")
+        collected_bulls = self.state.collected_bulls
 
-        # TODO: später UI + Logik
+        if collected_bulls <= 0:
+            return
+
+        bull_feature_result = play_bull_feature(
+            collected_bulls=collected_bulls,
+            bet=self.state.current_bet,
+            paylines=PAYLINES,
+        )
+
+        self.bull_feature_mode = True
+        self.bull_feature_result = bull_feature_result
+
+        apply_win(self.state, bull_feature_result.total_win)
+
+        self.last_total_win = bull_feature_result.total_win
+        self.status_text = (
+            f"Bull Feature beendet. Gewinn: {bull_feature_result.total_win}"
+        )
+
+        self.show_overlay(
+            "BULL FEATURE!",
+            (255, 200, 120),
+            2200,
+            subtext=f"Collected Bulls: {collected_bulls}",
+        )
+
         self.state.collected_bulls = 0
 
     def debug_trigger_free_spins(self) -> None:
@@ -655,6 +691,7 @@ class SlotUI:
         self.draw_bottom_panel()
         self.draw_overlay()
         self.draw_yin_yang_feature_board()
+        self.draw_bull_feature_board()
         self.draw_help_text()
 
     def draw_title(self) -> None:
@@ -673,6 +710,7 @@ class SlotUI:
             f"Guthaben: {self.state.balance}",
             f"Einsatz: {self.state.current_bet}",
             f"Freispiele: {self.state.free_spins_remaining}",
+            f"Bulls: {self.state.collected_bulls}",
             f"Letzter Gewinn: {self.last_total_win}",
         ]
 
@@ -1097,6 +1135,100 @@ class SlotUI:
                     popup_rect.centery - popup_surface.get_height() // 2,
                 ),
             )
+
+    def draw_bull_feature_board(self) -> None:
+        if not self.bull_feature_mode or self.bull_feature_result is None:
+            return
+
+        overlay_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay_surface.fill((0, 0, 0, 180))
+        self.screen.blit(overlay_surface, (0, 0))
+
+        board_rect = pygame.Rect(120, 100, 760, 520)
+        pygame.draw.rect(self.screen, (40, 28, 18), board_rect, border_radius=18)
+        pygame.draw.rect(
+            self.screen, (255, 200, 120), board_rect, width=4, border_radius=18
+        )
+
+        title_surface = self.title_font.render("BULL FEATURE", True, (255, 215, 140))
+        self.screen.blit(
+            title_surface,
+            (board_rect.centerx - title_surface.get_width() // 2, 120),
+        )
+
+        info_surface = self.label_font.render(
+            f"Collected Bulls: {self.bull_feature_result.collected_bulls}",
+            True,
+            TEXT_COLOR,
+        )
+        self.screen.blit(
+            info_surface,
+            (board_rect.centerx - info_surface.get_width() // 2, 170),
+        )
+
+        feature_grid_x = 200
+        feature_grid_y = 250
+        feature_cell_w = 90
+        feature_cell_h = 80
+        feature_gap = 12
+
+        for row_index in range(3):
+            for col_index in range(5):
+                x = feature_grid_x + col_index * (feature_cell_w + feature_gap)
+                y = feature_grid_y + row_index * (feature_cell_h + feature_gap)
+
+                cell_rect = pygame.Rect(x, y, feature_cell_w, feature_cell_h)
+                multiplier = self.bull_feature_result.multiplier_grid[row_index][
+                    col_index
+                ]
+                symbol = self.bull_feature_result.final_symbol_grid[row_index][
+                    col_index
+                ]
+
+                if multiplier > 0:
+                    fill_color = (245, 180, 130)
+                    border_color = (255, 235, 190)
+                else:
+                    fill_color = (225, 225, 235)
+                    border_color = (120, 120, 135)
+
+                pygame.draw.rect(self.screen, fill_color, cell_rect, border_radius=12)
+                pygame.draw.rect(
+                    self.screen, border_color, cell_rect, width=3, border_radius=12
+                )
+
+                symbol_surface = self.small_font.render(
+                    symbol.display, True, (30, 30, 40)
+                )
+                self.screen.blit(
+                    symbol_surface,
+                    (
+                        x + feature_cell_w // 2 - symbol_surface.get_width() // 2,
+                        y + 12,
+                    ),
+                )
+
+                if multiplier > 0:
+                    multi_surface = self.symbol_font.render(
+                        f"x{multiplier}", True, (30, 20, 20)
+                    )
+                    self.screen.blit(
+                        multi_surface,
+                        (
+                            x + feature_cell_w // 2 - multi_surface.get_width() // 2,
+                            y + 35,
+                        ),
+                    )
+
+        total_surface = self.title_font.render(
+            f"Total Win: {self.bull_feature_result.total_win}",
+            True,
+            (255, 220, 120),
+        )
+        self.screen.blit(
+            total_surface,
+            (board_rect.centerx - total_surface.get_width() // 2, 555),
+        )
 
     def draw_feature_continue_button(self, text: str) -> None:
         mouse_pos = pygame.mouse.get_pos()
