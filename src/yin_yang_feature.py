@@ -40,14 +40,48 @@ def create_empty_grid() -> list[list[int | None]]:
     return [[None for _ in range(REELS)] for _ in range(ROWS)]
 
 
-def get_random_initial_value(bet: int) -> int:
-    multiplier = random.choice([1, 1, 1, 2, 2, 3])
+def get_random_yin_value(bet: int) -> int:
+    multiplier = random.choice(
+        [
+            1,
+            1,
+            2,
+            2,
+            2,
+            3,
+            3,
+            3,
+            4,
+            4,
+            5,
+        ]
+    )
     return multiplier * bet
 
 
-def get_random_respin_value(bet: int) -> int:
-    multiplier = random.choice([1, 1, 2, 2, 3])
-    return multiplier * bet
+def get_random_column_multiplier() -> int:
+    return random.choice(
+        [
+            1,
+            2,
+            2,
+            3,
+            3,
+            3,
+            4,
+            4,
+            4,
+            5,
+            5,
+            6,
+            7,
+            8,
+        ]
+    )
+
+
+def create_initial_column_values(bet: int) -> list[int]:
+    return [get_random_column_multiplier() * bet for _ in range(REELS)]
 
 
 def get_completed_columns(grid: list[list[int | None]]) -> list[int]:
@@ -60,18 +94,23 @@ def get_completed_columns(grid: list[list[int | None]]) -> list[int]:
     return completed_columns
 
 
+def get_random_column_increase_factor() -> float:
+    return random.choice([1.25, 1.5, 1.75, 2.0])
+
+
 def increase_column_values(
     column_values: list[int],
     completed_columns: list[int],
 ) -> list[int]:
     new_values: list[int] = []
+    factor = get_random_column_increase_factor()
 
     for col_index, value in enumerate(column_values):
         if col_index in completed_columns:
             new_values.append(value)
         else:
-            increase = random.choice([50, 50, 100, 150])
-            new_values.append(value + increase)
+            new_value = int(round(value * factor))
+            new_values.append(new_value)
 
     return new_values
 
@@ -124,15 +163,15 @@ def maybe_activate_grand(
 def play_yin_yang_feature(
     bet: int,
     trigger_positions: list[tuple[int, int]],
-    hit_chance: float = 0.05,
+    hit_chance: float = 0.1,
 ) -> YinYangFeatureResult:
     grid = create_empty_grid()
 
     for row_index, col_index in trigger_positions:
-        grid[row_index][col_index] = get_random_initial_value(bet)
+        grid[row_index][col_index] = get_random_yin_value(bet)
 
     start_grid_values = copy_grid(grid)
-    column_values = [250, 100, 100, 50, 150]
+    column_values = create_initial_column_values(bet)
     start_column_values = column_values.copy()
 
     spins_left = 3
@@ -146,7 +185,7 @@ def play_yin_yang_feature(
             for col_index in range(REELS):
                 if grid[row_index][col_index] is None:
                     if random.random() < hit_chance:
-                        grid[row_index][col_index] = get_random_respin_value(bet)
+                        grid[row_index][col_index] = get_random_yin_value(bet)
                         new_positions.append((row_index, col_index))
 
         completed_columns = get_completed_columns(grid)
@@ -155,8 +194,7 @@ def play_yin_yang_feature(
         if new_positions:
             spins_left = 3
 
-            for _ in new_positions:
-                column_values = increase_column_values(column_values, completed_columns)
+            column_values = increase_column_values(column_values, completed_columns)
 
             previous_grand = grand_column_index
             grand_column_index = maybe_activate_grand(grid, grand_column_index)
