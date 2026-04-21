@@ -31,8 +31,16 @@ def spin_reels() -> list[list[Symbol]]:
 
     for reel_index in range(REELS):
         strip = REEL_STRIPS[reel_index]
-        stop_index = random.randint(0, len(strip) - 1)
-        visible_column = get_visible_symbols(strip, stop_index, ROWS)
+
+        if reel_index == 4:
+            filtered_strip = [
+                symbol for symbol in strip if not symbol.is_credit_value_symbol
+            ]
+        else:
+            filtered_strip = [symbol for symbol in strip if not symbol.is_collector]
+
+        stop_index = random.randint(0, len(filtered_strip) - 1)
+        visible_column = get_visible_symbols(filtered_strip, stop_index, ROWS)
         columns.append(visible_column)
 
     grid: list[list[Symbol]] = []
@@ -185,6 +193,11 @@ def get_awarded_free_spins(scatter_count: int) -> int:
     return FREE_SPINS_AWARDED.get(capped_count, 0)
 
 
+def get_random_credit_value(bet: int) -> int:
+    multiplier = random.choice([1, 2, 2, 3, 5, 10])
+    return bet * multiplier
+
+
 def spin_reels_free_spins() -> list[list[Symbol]]:
     columns: list[list[Symbol]] = []
 
@@ -256,6 +269,28 @@ def get_yin_yang_positions(grid: list[list[Symbol]]) -> list[tuple[int, int]]:
     return positions
 
 
+def get_credit_positions(grid: list[list[Symbol]]) -> list[tuple[int, int]]:
+    positions: list[tuple[int, int]] = []
+
+    for row_index, row in enumerate(grid):
+        for col_index, symbol in enumerate(row):
+            if symbol.is_credit_value_symbol and col_index < 4:
+                positions.append((row_index, col_index))
+
+    return positions
+
+
+def get_collector_positions(grid: list[list[Symbol]]) -> list[tuple[int, int]]:
+    positions: list[tuple[int, int]] = []
+
+    for row_index, row in enumerate(grid):
+        for col_index, symbol in enumerate(row):
+            if symbol.is_collector and col_index == 4:
+                positions.append((row_index, col_index))
+
+    return positions
+
+
 def evaluate_total_win(grid: list[list[Symbol]], bet: int) -> dict:
     line_win, line_results = evaluate_all_paylines(grid, bet)
     scatter_count, scatter_win = evaluate_scatters(grid, bet)
@@ -265,7 +300,11 @@ def evaluate_total_win(grid: list[list[Symbol]], bet: int) -> dict:
         grid, bet
     )
 
-    total_win = line_win + scatter_win + yin_yang_win
+    instant_win, credit_values, credit_positions, collector_positions = (
+        evaluate_instant_win_feature(grid, bet)
+    )
+
+    total_win = line_win + scatter_win + yin_yang_win + instant_win
 
     return {
         "line_win": line_win,
@@ -276,8 +315,34 @@ def evaluate_total_win(grid: list[list[Symbol]], bet: int) -> dict:
         "yin_yang_count": yin_yang_count,
         "yin_yang_win": yin_yang_win,
         "yin_yang_feature_result": yin_yang_feature_result,
+        "instant_win": instant_win,
+        "credit_values": credit_values,
+        "credit_positions": credit_positions,
+        "collector_positions": collector_positions,
         "total_win": total_win,
     }
+
+
+def evaluate_instant_win_feature(
+    grid: list[list[Symbol]],
+    bet: int,
+) -> tuple[
+    int, dict[tuple[int, int], int], list[tuple[int, int]], list[tuple[int, int]]
+]:
+    credit_positions = get_credit_positions(grid)
+    collector_positions = get_collector_positions(grid)
+
+    credit_values: dict[tuple[int, int], int] = {}
+
+    for position in credit_positions:
+        credit_values[position] = get_random_credit_value(bet)
+
+    if not credit_positions or not collector_positions:
+        return 0, credit_values, credit_positions, collector_positions
+
+    instant_win = sum(credit_values.values())
+
+    return instant_win, credit_values, credit_positions, collector_positions
 
 
 def print_line_results(line_results: list[dict]) -> None:

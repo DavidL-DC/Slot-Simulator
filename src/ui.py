@@ -17,7 +17,7 @@ from slot_machine import (
     spin_reels_free_spins,
     count_bulls,
 )
-from symbols import ALL_SYMBOLS, Symbol
+from symbols import ALL_SYMBOLS, Symbol, COLLECTOR, CREDIT
 
 from bull_feature import play_bull_feature
 from config import PAYLINES
@@ -77,6 +77,11 @@ class SlotUI:
         self.last_yin_yang_count = 0
         self.last_awarded_free_spins = 0
         self.last_yin_yang_feature_result = None
+        self.last_instant_win = 0
+        self.last_credit_values = {}
+        self.last_credit_positions = []
+        self.last_collector_positions = []
+
         self.status_text = "Drücke LEERTASTE oder SPIN"
         self.overlay_text = ""
         self.overlay_subtext = ""
@@ -98,6 +103,10 @@ class SlotUI:
         self.pending_awarded_free_spins = 0
         self.pending_free_spin_mode = False
         self.pending_yin_yang_feature_result = None
+        self.pending_instant_win = 0
+        self.pending_credit_values = {}
+        self.pending_credit_positions = []
+        self.pending_collector_positions = []
 
         self.feature_mode = False
         self.feature_result = None
@@ -202,6 +211,8 @@ class SlotUI:
                     self.debug_trigger_free_spins()
                 elif event.key == pygame.K_y:
                     self.debug_trigger_yin_yang()
+                elif event.key == pygame.K_i:
+                    self.debug_trigger_instant_win()
 
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_pos = pygame.mouse.get_pos()
@@ -818,6 +829,11 @@ class SlotUI:
             self.status_text = "Nicht genug Guthaben für einen Spin."
             return
 
+        self.last_instant_win = 0
+        self.last_credit_values = {}
+        self.last_credit_positions = []
+        self.last_collector_positions = []
+
         free_spin_mode = is_free_spin(self.state)
         self.pending_free_spin_mode = free_spin_mode
 
@@ -838,6 +854,10 @@ class SlotUI:
         scatter_win = win_result["scatter_win"]
         yin_yang_win = win_result["yin_yang_win"]
         yin_yang_feature_result = win_result["yin_yang_feature_result"]
+        instant_win = win_result["instant_win"]
+        credit_values = win_result["credit_values"]
+        credit_positions = win_result["credit_positions"]
+        collector_positions = win_result["collector_positions"]
 
         self.pending_total_win = total_win
         self.pending_line_win = line_win
@@ -847,6 +867,10 @@ class SlotUI:
         self.pending_yin_yang_count = win_result["yin_yang_count"]
         self.pending_awarded_free_spins = win_result["awarded_free_spins"]
         self.pending_yin_yang_feature_result = yin_yang_feature_result
+        self.pending_instant_win = instant_win
+        self.pending_credit_values = credit_values
+        self.pending_credit_positions = credit_positions
+        self.pending_collector_positions = collector_positions
 
         self.current_grid = self.create_random_grid()
 
@@ -974,6 +998,82 @@ class SlotUI:
         )
         self.start_yin_yang_feature_playback(result["yin_yang_feature_result"])
 
+    def debug_trigger_instant_win(self) -> None:
+        free_spin_mode = is_free_spin(self.state)
+
+        if (
+            self.is_spinning
+            or self.feature_mode
+            or self.bull_feature_mode
+            or free_spin_mode
+        ):
+            return
+
+        apply_bet(self.state)
+        self.status_text = "DEBUG: Instant Win wird gespint..."
+
+        non_special_symbols = [
+            symbol
+            for symbol in ALL_SYMBOLS
+            if symbol.name not in {"coin", "credit", "collector", "yin_yang"}
+        ]
+
+        debug_grid = [
+            [
+                random.choice(non_special_symbols),
+                random.choice(non_special_symbols),
+                random.choice(non_special_symbols),
+                random.choice(non_special_symbols),
+                random.choice(non_special_symbols),
+            ]
+            for _ in range(3)
+        ]
+
+        debug_grid[0][0] = CREDIT
+        debug_grid[1][2] = CREDIT
+        debug_grid[2][4] = COLLECTOR
+
+        self.final_grid = debug_grid
+        win_result = evaluate_total_win(self.final_grid, self.state.current_bet)
+
+        total_win = win_result["total_win"]
+        line_win = win_result["line_win"]
+        scatter_win = win_result["scatter_win"]
+        yin_yang_win = win_result["yin_yang_win"]
+        instant_win = win_result["instant_win"]
+        yin_yang_feature_result = win_result["yin_yang_feature_result"]
+
+        credit_values = win_result["credit_values"]
+        credit_positions = win_result["credit_positions"]
+        collector_positions = win_result["collector_positions"]
+
+        self.pending_total_win = total_win
+        self.pending_line_win = line_win
+        self.pending_scatter_win = scatter_win
+        self.pending_yin_yang_win = yin_yang_win
+        self.pending_instant_win = instant_win
+        self.pending_scatter_count = win_result["scatter_count"]
+        self.pending_yin_yang_count = win_result["yin_yang_count"]
+        self.pending_awarded_free_spins = win_result["awarded_free_spins"]
+        self.pending_yin_yang_feature_result = yin_yang_feature_result
+        self.pending_credit_values = credit_values
+        self.pending_credit_positions = credit_positions
+        self.pending_collector_positions = collector_positions
+
+        self.current_grid = self.create_random_grid()
+
+        self.is_spinning = True
+        self.locked_reels = [False, False, False, False, False]
+
+        spin_start_time = pygame.time.get_ticks()
+        base_delay = 700
+        reel_delay = 250
+
+        self.reel_stop_times = [
+            spin_start_time + base_delay + reel_index * reel_delay
+            for reel_index in range(GRID_COLS)
+        ]
+
     def finish_spin(self) -> None:
         self.is_spinning = False
 
@@ -990,6 +1090,10 @@ class SlotUI:
         self.last_scatter_count = self.pending_scatter_count
         self.last_yin_yang_count = self.pending_yin_yang_count
         self.last_awarded_free_spins = self.pending_awarded_free_spins
+        self.last_instant_win = self.pending_instant_win
+        self.last_credit_values = self.pending_credit_values.copy()
+        self.last_credit_positions = self.pending_credit_positions.copy()
+        self.last_collector_positions = self.pending_collector_positions.copy()
 
         if self.pending_awarded_free_spins > 0:
             self.show_overlay(
@@ -1010,6 +1114,13 @@ class SlotUI:
                 subtext=f"Feature win: {self.pending_yin_yang_win}",
             )
             self.start_yin_yang_feature_playback(self.pending_yin_yang_feature_result)
+        elif self.pending_instant_win > 0:
+            self.show_overlay(
+                f"INSTANT WIN {self.pending_instant_win}",
+                (255, 190, 90),
+                1600,
+                subtext="Collector paid all Credit symbols",
+            )
         elif self.pending_total_win > 0 and self.pending_awarded_free_spins == 0:
             self.show_overlay(
                 f"WIN {self.pending_total_win}",
@@ -1087,6 +1198,10 @@ class SlotUI:
                     inner_color = (210, 180, 245)
                 elif symbol.is_wild:
                     inner_color = (245, 170, 170)
+                elif symbol.is_credit_value_symbol:
+                    inner_color = (140, 220, 170)
+                elif symbol.is_collector:
+                    inner_color = (255, 185, 120)
 
                 pygame.draw.rect(self.screen, inner_color, cell_rect, border_radius=12)
                 pygame.draw.rect(
@@ -1101,16 +1216,50 @@ class SlotUI:
                         self.screen, (180, 190, 210), inner_rect, border_radius=10
                     )
 
-                symbol_surface = self.symbol_font.render(
-                    symbol.display, True, (30, 30, 40)
-                )
-                self.screen.blit(
-                    symbol_surface,
-                    (
-                        x + CELL_WIDTH // 2 - symbol_surface.get_width() // 2,
-                        y + CELL_HEIGHT // 2 - symbol_surface.get_height() // 2,
-                    ),
-                )
+                if symbol.is_credit_value_symbol:
+                    grid_position = (row_index, col_index)
+                    value_text = ""
+
+                    if self.is_spinning:
+                        if grid_position in self.pending_credit_values:
+                            value_text = str(self.pending_credit_values[grid_position])
+                    else:
+                        if grid_position in self.last_credit_values:
+                            value_text = str(self.last_credit_values[grid_position])
+
+                    symbol_surface = self.small_font.render(
+                        symbol.display, True, (30, 30, 40)
+                    )
+                    self.screen.blit(
+                        symbol_surface,
+                        (
+                            x + CELL_WIDTH // 2 - symbol_surface.get_width() // 2,
+                            y + 28,
+                        ),
+                    )
+
+                    if value_text:
+                        value_surface = self.small_font.render(
+                            value_text, True, (30, 30, 40)
+                        )
+                        self.screen.blit(
+                            value_surface,
+                            (
+                                x + CELL_WIDTH // 2 - value_surface.get_width() // 2,
+                                y + 62,
+                            ),
+                        )
+                else:
+                    symbol_surface = self.symbol_font.render(
+                        symbol.display, True, (30, 30, 40)
+                    )
+                    self.screen.blit(
+                        symbol_surface,
+                        (
+                            x + CELL_WIDTH // 2 - symbol_surface.get_width() // 2,
+                            y + CELL_HEIGHT // 2 - symbol_surface.get_height() // 2,
+                        ),
+                    )
 
     def draw_controls(self) -> None:
         self.draw_small_button(self.bet_minus_rect, "-", enabled=not self.is_spinning)
@@ -1178,6 +1327,7 @@ class SlotUI:
             f"Linien: {self.last_line_win}   "
             f"Scatter: {self.last_scatter_win} (x{self.last_scatter_count})   "
             f"Yin-Yang: {self.last_yin_yang_win} (x{self.last_yin_yang_count})"
+            f"Instant: {self.last_instant_win}   "
         )
         row_2 = (
             f"Neue Freispiele: {self.last_awarded_free_spins}   "
@@ -1700,7 +1850,7 @@ class SlotUI:
         )
 
     def draw_help_text(self) -> None:
-        help_text = "SPACE = Spin | F = Freispiele | Y = Yin-Yang | Pfeil hoch/runter = Einsatz | Maus: Buttons | ESC = Beenden"
+        help_text = "SPACE = Spin | F = Freispiele | Y = Yin-Yang | I = Instant Win | Pfeil hoch/runter = Einsatz | Maus: Buttons | ESC = Beenden"
         help_surface = self.small_font.render(help_text, True, TEXT_COLOR)
         self.screen.blit(
             help_surface,

@@ -47,6 +47,10 @@ class SimulationStats:
     base_game_yin_yang_win: int = 0
     free_spin_yin_yang_win: int = 0
 
+    total_instant_win: int = 0
+    base_game_instant_win: int = 0
+    free_spin_instant_win: int = 0
+
     def rtp(self) -> float:
         if self.total_bet == 0:
             return 0.0
@@ -126,6 +130,7 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
     line_win = win_result["line_win"]
     scatter_win = win_result["scatter_win"]
     yin_yang_win = win_result["yin_yang_win"]
+    instant_win = win_result["instant_win"]
     awarded_free_spins = win_result["awarded_free_spins"]
     scatter_count = win_result["scatter_count"]
 
@@ -146,17 +151,20 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
     stats.total_line_win += line_win
     stats.total_scatter_win += scatter_win
     stats.total_yin_yang_win += yin_yang_win
+    stats.total_instant_win += instant_win
 
     if free_spin_mode:
         stats.free_spin_win += total_win
         stats.free_spin_line_win += line_win
         stats.free_spin_scatter_win += scatter_win
         stats.free_spin_yin_yang_win += yin_yang_win
+        stats.free_spin_instant_win += instant_win
     else:
         stats.base_game_win += total_win
         stats.base_game_line_win += line_win
         stats.base_game_scatter_win += scatter_win
         stats.base_game_yin_yang_win += yin_yang_win
+        stats.base_game_instant_win += instant_win
 
 
 def run_simulation(
@@ -235,6 +243,7 @@ def print_simulation_stats(stats: SimulationStats) -> None:
     print(f"Liniengewinn gesamt: {stats.total_line_win}")
     print(f"Scattergewinn gesamt: {stats.total_scatter_win}")
     print(f"Yin-Yang-Gewinn gesamt: {stats.total_yin_yang_win}")
+    print(f"Instant-Win gesamt: {stats.total_instant_win}")
     print()
     print(f"Basis-Spiel Liniengewinn: {stats.base_game_line_win}")
     print(f"Freispiel Liniengewinn: {stats.free_spin_line_win}")
@@ -244,6 +253,9 @@ def print_simulation_stats(stats: SimulationStats) -> None:
     print()
     print(f"Basis-Spiel Yin-Yang-Gewinn: {stats.base_game_yin_yang_win}")
     print(f"Freispiel Yin-Yang-Gewinn: {stats.free_spin_yin_yang_win}")
+    print()
+    print(f"Basis-Spiel Instant-Win: {stats.base_game_instant_win}")
+    print(f"Freispiel Instant-Win: {stats.free_spin_instant_win}")
     print()
     print_line_hit_stats(stats)
     print()
