@@ -193,25 +193,7 @@ class SlotUI:
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
                 elif event.key == pygame.K_SPACE:
-                    if self.feature_mode:
-                        if (
-                            self.feature_phase == "spins"
-                            and self.feature_waiting_for_input
-                        ):
-                            self.advance_feature_playback()
-                        elif (
-                            self.feature_phase == "done"
-                            and self.feature_finished_waiting
-                        ):
-                            self.advance_feature_playback()
-                    elif (
-                        self.bull_feature_mode
-                        and self.bull_feature_phase == "done"
-                        and self.bull_feature_finished_waiting
-                    ):
-                        self.close_bull_feature()
-                    else:
-                        self.try_spin()
+                    self.handle_skip_or_continue()
                 elif event.key == pygame.K_UP:
                     self.change_bet(10)
                 elif event.key == pygame.K_DOWN:
@@ -244,11 +226,192 @@ class SlotUI:
                         self.close_bull_feature()
                     return
                 elif self.spin_button_rect.collidepoint(mouse_pos):
-                    self.try_spin()
+                    self.handle_skip_or_continue()
                 elif self.bet_minus_rect.collidepoint(mouse_pos):
                     self.change_bet(-10)
                 elif self.bet_plus_rect.collidepoint(mouse_pos):
                     self.change_bet(10)
+
+    def has_skippable_animation(self) -> bool:
+        if self.is_spinning:
+            return True
+
+        if self.feature_mode:
+            if self.feature_respin_animating:
+                return True
+            if self.feature_phase == "countup":
+                return True
+
+        if self.bull_feature_mode:
+            if self.bull_feature_phase == "drops":
+                return True
+            if self.bull_feature_fill_animating:
+                return True
+            if self.bull_feature_phase == "countup":
+                return True
+
+        return False
+
+    def handle_skip_or_continue(self) -> None:
+        if self.has_skippable_animation():
+            self.skip_current_animation()
+            return
+
+        if self.feature_mode:
+            if self.feature_phase == "spins" and self.feature_waiting_for_input:
+                self.advance_feature_playback()
+                return
+
+            if self.feature_phase == "done" and self.feature_finished_waiting:
+                self.advance_feature_playback()
+                return
+
+            return
+
+        if self.bull_feature_mode:
+            if self.bull_feature_phase == "done" and self.bull_feature_finished_waiting:
+                self.close_bull_feature()
+            return
+
+        self.try_spin()
+
+    def skip_current_animation(self) -> None:
+        self.status_text = "Animation übersprungen"
+        if self.is_spinning:
+            self.skip_base_spin_animation()
+            return
+
+        if self.feature_mode:
+            if self.feature_respin_animating:
+                self.skip_yin_yang_respin_animation()
+                return
+
+            if self.feature_phase == "countup":
+                self.skip_yin_yang_countup()
+                return
+
+        if self.bull_feature_mode:
+            if self.bull_feature_phase == "drops":
+                self.skip_bull_drops()
+                return
+
+            if self.bull_feature_fill_animating:
+                self.skip_bull_fill_animation()
+                return
+
+            if self.bull_feature_phase == "countup":
+                self.skip_bull_countup()
+                return
+
+    def skip_base_spin_animation(self) -> None:
+        if not self.is_spinning:
+            return
+
+        self.current_grid = [row.copy() for row in self.final_grid]
+        self.locked_reels = [True, True, True, True, True]
+        self.finish_spin()
+
+    def skip_yin_yang_respin_animation(self) -> None:
+        if not self.feature_mode or not self.feature_respin_animating:
+            return
+
+        if self.feature_pending_spin_result is None:
+            self.feature_respin_animating = False
+            self.feature_waiting_for_input = True
+            return
+
+        current_spin = self.feature_pending_spin_result
+
+        self.feature_display_grid = [row.copy() for row in current_spin.grid_values]
+        self.feature_display_columns = current_spin.column_values.copy()
+        self.feature_display_spins_left = current_spin.spins_left_after
+        self.feature_display_new_positions = current_spin.new_positions.copy()
+
+        if self.feature_background_grid is None:
+            self.feature_background_grid = self.create_feature_background_grid()
+
+        for row_index in range(3):
+            for col_index in range(5):
+                if self.feature_display_grid[row_index][col_index] is None:
+                    self.feature_background_grid[row_index][
+                        col_index
+                    ] = self.get_feature_spin_symbol()
+
+        self.feature_current_completed_columns = current_spin.completed_columns.copy()
+        self.feature_current_grand_column_index = current_spin.grand_column_index
+
+        if current_spin.grand_activated:
+            self.feature_grand_popup_text = "GRAND JACKPOT ACTIVATED!"
+            self.feature_grand_popup_end_time = pygame.time.get_ticks() + 1800
+
+        self.feature_flash_until = pygame.time.get_ticks() + 500
+        self.feature_respin_animating = False
+        self.feature_respin_animation_end_time = 0
+        self.feature_waiting_for_input = True
+        self.feature_pending_spin_result = None
+        self.update_feature_spinning_cells()
+
+    def skip_yin_yang_countup(self) -> None:
+        if not self.feature_mode or self.feature_result is None:
+            return
+
+        self.feature_countup_value = self.feature_countup_target
+        self.feature_phase = "done"
+        self.feature_finished_waiting = True
+        self.feature_waiting_for_input = False
+
+        self.feature_current_completed_columns = (
+            self.feature_result.completed_columns.copy()
+        )
+        self.feature_current_grand_column_index = self.feature_result.grand_column_index
+
+    def skip_bull_drops(self) -> None:
+        if (
+            not self.bull_feature_mode
+            or self.bull_feature_result is None
+            or self.bull_feature_display_multiplier_grid is None
+        ):
+            return
+
+        self.bull_feature_display_multiplier_grid = [
+            row.copy() for row in self.bull_feature_result.multiplier_grid
+        ]
+
+        self.bull_feature_drop_index = len(self.bull_feature_result.drops) - 1
+        self.bull_feature_flash_cells = []
+        self.bull_feature_flash_until = 0
+
+        self.bull_feature_phase = "fill"
+        self.bull_feature_fill_animating = True
+        self.bull_feature_fill_animation_end_time = pygame.time.get_ticks()
+        self.update_bull_feature_fill_animation()
+
+    def skip_bull_fill_animation(self) -> None:
+        if not self.bull_feature_mode or self.bull_feature_result is None:
+            return
+
+        self.bull_feature_fill_animating = False
+        self.bull_feature_fill_animation_end_time = 0
+        self.bull_feature_display_symbol_grid = [
+            row.copy() for row in self.bull_feature_result.final_symbol_grid
+        ]
+        self.bull_feature_spinning_cells = []
+        self.bull_feature_phase = "countup"
+        self.bull_feature_countup_start_time = pygame.time.get_ticks()
+
+    def skip_bull_countup(self) -> None:
+        if not self.bull_feature_mode or self.bull_feature_result is None:
+            return
+
+        self.bull_feature_countup_value = self.bull_feature_countup_target
+        self.bull_feature_phase = "done"
+        self.bull_feature_finished_waiting = True
+        self.bull_feature_waiting_for_input = True
+
+        if not self.bull_feature_win_applied:
+            apply_win(self.state, self.bull_feature_result.total_win)
+            self.last_total_win += self.bull_feature_result.total_win
+            self.bull_feature_win_applied = True
 
     def get_feature_spin_symbol(self) -> Symbol:
         weighted_symbols = [
@@ -993,7 +1156,8 @@ class SlotUI:
 
         pygame.draw.rect(self.screen, color, self.spin_button_rect, border_radius=14)
 
-        text_surface = self.button_font.render("SPIN", True, TEXT_COLOR)
+        button_text = "SKIP" if self.has_skippable_animation() else "SPIN"
+        text_surface = self.button_font.render(button_text, True, TEXT_COLOR)
         self.screen.blit(
             text_surface,
             (
