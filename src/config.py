@@ -18,8 +18,8 @@ from symbols import (
 ROWS = 3
 REELS = 5
 
-START_BALANCE = 1000
-DEFAULT_BET = 10
+START_BALANCE = 100
+DEFAULT_BET = 1
 
 PAYLINES = [
     [0, 0, 0, 0, 0],  # 1

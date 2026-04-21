@@ -139,6 +139,32 @@ class SlotUI:
 
         self.bull_feature_mode = False
         self.bull_feature_result = None
+        self.bull_feature_phase = "idle"
+
+        self.bull_feature_display_multiplier_grid = None
+        self.bull_feature_display_symbol_grid = None
+        self.bull_feature_drop_index = -1
+        self.bull_feature_drop_step_duration_ms = 350
+        self.bull_feature_next_drop_time = 0
+
+        self.bull_feature_fill_animating = False
+        self.bull_feature_fill_animation_end_time = 0
+        self.bull_feature_spinning_cells: list[tuple[int, int]] = []
+        self.bull_feature_background_grid = None
+
+        self.bull_feature_countup_value = 0
+        self.bull_feature_countup_target = 0
+        self.bull_feature_countup_start_time = 0
+        self.bull_feature_countup_duration_ms = 1200
+
+        self.bull_feature_waiting_for_input = False
+        self.bull_feature_finished_waiting = False
+
+        self.bull_feature_flash_cells: list[tuple[int, int]] = []
+        self.bull_feature_flash_until = 0
+
+        self.bull_feature_continue_button_rect = pygame.Rect(380, 610, 240, 52)
+        self.bull_feature_win_applied = False
 
         self.spin_button_rect = pygame.Rect(830, 470, 140, 60)
         self.bet_minus_rect = pygame.Rect(20, 470, 60, 50)
@@ -150,6 +176,8 @@ class SlotUI:
             self.update_animation()
             self.update_feature_playback()
             self.update_feature_respin_animation()
+            self.update_bull_feature_playback()
+            self.update_bull_feature_fill_animation()
             self.draw()
             pygame.display.flip()
             self.clock.tick(60)
@@ -176,9 +204,12 @@ class SlotUI:
                             and self.feature_finished_waiting
                         ):
                             self.advance_feature_playback()
-                    elif self.bull_feature_mode:
-                        self.bull_feature_mode = False
-                        self.bull_feature_result = None
+                    elif (
+                        self.bull_feature_mode
+                        and self.bull_feature_phase == "done"
+                        and self.bull_feature_finished_waiting
+                    ):
+                        self.close_bull_feature()
                     else:
                         self.try_spin()
                 elif event.key == pygame.K_UP:
@@ -201,6 +232,16 @@ class SlotUI:
                         self.advance_feature_playback()
                     elif self.feature_phase == "done" and self.feature_finished_waiting:
                         self.advance_feature_playback()
+                    return
+                elif (
+                    self.bull_feature_mode
+                    and self.bull_feature_continue_button_rect.collidepoint(mouse_pos)
+                ):
+                    if (
+                        self.bull_feature_phase == "done"
+                        and self.bull_feature_finished_waiting
+                    ):
+                        self.close_bull_feature()
                     return
                 elif self.spin_button_rect.collidepoint(mouse_pos):
                     self.try_spin()
@@ -480,6 +521,109 @@ class SlotUI:
         self.feature_spinning_cells = spinning_cells
         self.feature_spin_symbols = spin_symbols
 
+    def update_bull_feature_spinning_cells(self) -> None:
+        if (
+            not self.bull_feature_mode
+            or self.bull_feature_display_multiplier_grid is None
+            or not self.bull_feature_fill_animating
+        ):
+            self.bull_feature_spinning_cells = []
+            return
+
+        if self.bull_feature_background_grid is None:
+            self.bull_feature_background_grid = self.create_feature_background_grid()
+
+        spinning_cells: list[tuple[int, int]] = []
+
+        for row_index in range(3):
+            for col_index in range(5):
+                if self.bull_feature_display_multiplier_grid[row_index][col_index] == 0:
+                    spinning_cells.append((row_index, col_index))
+                    self.bull_feature_background_grid[row_index][
+                        col_index
+                    ] = self.get_feature_spin_symbol()
+
+        self.bull_feature_spinning_cells = spinning_cells
+
+    def update_bull_feature_fill_animation(self) -> None:
+        if (
+            not self.bull_feature_mode
+            or not self.bull_feature_fill_animating
+            or self.bull_feature_result is None
+        ):
+            return
+
+        current_time = pygame.time.get_ticks()
+
+        if current_time < self.bull_feature_fill_animation_end_time:
+            self.update_bull_feature_spinning_cells()
+            return
+
+        self.bull_feature_fill_animating = False
+        self.bull_feature_display_symbol_grid = [
+            row.copy() for row in self.bull_feature_result.final_symbol_grid
+        ]
+        self.bull_feature_spinning_cells = []
+        self.bull_feature_phase = "countup"
+        self.bull_feature_countup_start_time = pygame.time.get_ticks()
+
+    def update_bull_feature_playback(self) -> None:
+        if (
+            not self.bull_feature_mode
+            or self.bull_feature_result is None
+            or self.bull_feature_display_multiplier_grid is None
+        ):
+            return
+
+        current_time = pygame.time.get_ticks()
+
+        if self.bull_feature_phase == "drops":
+            if current_time < self.bull_feature_next_drop_time:
+                return
+
+            next_index = self.bull_feature_drop_index + 1
+
+            if next_index >= len(self.bull_feature_result.drops):
+                self.bull_feature_phase = "fill"
+                self.bull_feature_fill_animating = True
+                self.bull_feature_fill_animation_end_time = current_time + 1100
+                self.update_bull_feature_spinning_cells()
+                return
+
+            self.bull_feature_drop_index = next_index
+            current_drop = self.bull_feature_result.drops[self.bull_feature_drop_index]
+
+            row_index, col_index = current_drop.landing_position
+            self.bull_feature_display_multiplier_grid[row_index][
+                col_index
+            ] = current_drop.multiplier_after
+
+            self.bull_feature_flash_cells = [(row_index, col_index)]
+            self.bull_feature_flash_until = current_time + 260
+            self.bull_feature_next_drop_time = (
+                current_time + self.bull_feature_drop_step_duration_ms
+            )
+            return
+
+        if self.bull_feature_phase == "countup":
+            elapsed = current_time - self.bull_feature_countup_start_time
+            progress = min(1.0, elapsed / self.bull_feature_countup_duration_ms)
+
+            self.bull_feature_countup_value = int(
+                self.bull_feature_countup_target * progress
+            )
+
+            if progress >= 1.0:
+                self.bull_feature_phase = "done"
+                self.bull_feature_finished_waiting = True
+                self.bull_feature_waiting_for_input = True
+
+                if not self.bull_feature_win_applied:
+                    apply_win(self.state, self.bull_feature_result.total_win)
+                    self.last_total_win = self.bull_feature_result.total_win
+                    self.bull_feature_win_applied = True
+            return
+
     def change_bet(self, delta: int) -> None:
         if self.is_spinning:
             return
@@ -569,13 +713,31 @@ class SlotUI:
 
         self.bull_feature_mode = True
         self.bull_feature_result = bull_feature_result
+        self.bull_feature_phase = "drops"
 
-        apply_win(self.state, bull_feature_result.total_win)
+        self.bull_feature_display_multiplier_grid = [
+            [0 for _ in range(5)] for _ in range(3)
+        ]
+        self.bull_feature_display_symbol_grid = None
 
-        self.last_total_win = bull_feature_result.total_win
-        self.status_text = (
-            f"Bull Feature beendet. Gewinn: {bull_feature_result.total_win}"
-        )
+        self.bull_feature_drop_index = -1
+        self.bull_feature_next_drop_time = pygame.time.get_ticks() + 250
+
+        self.bull_feature_fill_animating = False
+        self.bull_feature_fill_animation_end_time = 0
+        self.bull_feature_spinning_cells = []
+        self.bull_feature_background_grid = self.create_feature_background_grid()
+
+        self.bull_feature_countup_value = 0
+        self.bull_feature_countup_target = bull_feature_result.total_win
+        self.bull_feature_countup_start_time = 0
+
+        self.bull_feature_waiting_for_input = False
+        self.bull_feature_finished_waiting = False
+
+        self.bull_feature_flash_cells = []
+        self.bull_feature_flash_until = 0
+        self.bull_feature_win_applied = False
 
         self.show_overlay(
             "BULL FEATURE!",
@@ -585,6 +747,31 @@ class SlotUI:
         )
 
         self.state.collected_bulls = 0
+
+    def close_bull_feature(self) -> None:
+        self.bull_feature_mode = False
+        self.bull_feature_result = None
+        self.bull_feature_phase = "idle"
+
+        self.bull_feature_display_multiplier_grid = None
+        self.bull_feature_display_symbol_grid = None
+        self.bull_feature_drop_index = -1
+        self.bull_feature_next_drop_time = 0
+
+        self.bull_feature_fill_animating = False
+        self.bull_feature_fill_animation_end_time = 0
+        self.bull_feature_spinning_cells = []
+        self.bull_feature_background_grid = None
+
+        self.bull_feature_countup_value = 0
+        self.bull_feature_countup_target = 0
+        self.bull_feature_countup_start_time = 0
+
+        self.bull_feature_waiting_for_input = False
+        self.bull_feature_finished_waiting = False
+        self.bull_feature_flash_cells = []
+        self.bull_feature_flash_until = 0
+        self.bull_feature_win_applied = False
 
     def debug_trigger_free_spins(self) -> None:
         if self.is_spinning:
@@ -1137,11 +1324,15 @@ class SlotUI:
             )
 
     def draw_bull_feature_board(self) -> None:
-        if not self.bull_feature_mode or self.bull_feature_result is None:
+        if (
+            not self.bull_feature_mode
+            or self.bull_feature_result is None
+            or self.bull_feature_display_multiplier_grid is None
+        ):
             return
 
         overlay_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        overlay_surface.fill((0, 0, 0, 180))
+        overlay_surface.fill((0, 0, 0, 185))
         self.screen.blit(overlay_surface, (0, 0))
 
         board_rect = pygame.Rect(120, 100, 760, 520)
@@ -1156,21 +1347,28 @@ class SlotUI:
             (board_rect.centerx - title_surface.get_width() // 2, 120),
         )
 
-        info_surface = self.label_font.render(
-            f"Collected Bulls: {self.bull_feature_result.collected_bulls}",
-            True,
-            TEXT_COLOR,
-        )
+        phase_text = "Dropping collected Bulls..."
+        if self.bull_feature_phase == "fill":
+            phase_text = "Spinning empty cells..."
+        elif self.bull_feature_phase == "countup":
+            phase_text = "Counting Bull Feature win..."
+        elif self.bull_feature_phase == "done":
+            phase_text = "Bull Feature complete"
+
+        info_surface = self.label_font.render(phase_text, True, TEXT_COLOR)
         self.screen.blit(
             info_surface,
-            (board_rect.centerx - info_surface.get_width() // 2, 170),
+            (board_rect.centerx - info_surface.get_width() // 2, 165),
         )
 
         feature_grid_x = 200
-        feature_grid_y = 250
+        feature_grid_y = 240
         feature_cell_w = 90
         feature_cell_h = 80
         feature_gap = 12
+
+        pulse = (pygame.time.get_ticks() // 120) % 2 == 0
+        flashing = pygame.time.get_ticks() < self.bull_feature_flash_until
 
         for row_index in range(3):
             for col_index in range(5):
@@ -1178,57 +1376,104 @@ class SlotUI:
                 y = feature_grid_y + row_index * (feature_cell_h + feature_gap)
 
                 cell_rect = pygame.Rect(x, y, feature_cell_w, feature_cell_h)
-                multiplier = self.bull_feature_result.multiplier_grid[row_index][
+
+                multiplier = self.bull_feature_display_multiplier_grid[row_index][
                     col_index
                 ]
-                symbol = self.bull_feature_result.final_symbol_grid[row_index][
-                    col_index
-                ]
+                is_flash = (row_index, col_index) in self.bull_feature_flash_cells
 
                 if multiplier > 0:
-                    fill_color = (245, 180, 130)
+                    if is_flash and flashing and pulse:
+                        fill_color = (255, 240, 160)
+                    elif is_flash and flashing:
+                        fill_color = (250, 220, 130)
+                    else:
+                        fill_color = (245, 180, 130)
+
                     border_color = (255, 235, 190)
                 else:
-                    fill_color = (225, 225, 235)
-                    border_color = (120, 120, 135)
+                    fill_color = (72, 72, 82)
+                    border_color = (135, 135, 155)
 
                 pygame.draw.rect(self.screen, fill_color, cell_rect, border_radius=12)
                 pygame.draw.rect(
                     self.screen, border_color, cell_rect, width=3, border_radius=12
                 )
 
-                symbol_surface = self.small_font.render(
-                    symbol.display, True, (30, 30, 40)
-                )
-                self.screen.blit(
-                    symbol_surface,
-                    (
-                        x + feature_cell_w // 2 - symbol_surface.get_width() // 2,
-                        y + 12,
-                    ),
-                )
-
                 if multiplier > 0:
+                    bull_surface = self.small_font.render("BULL", True, (35, 20, 20))
                     multi_surface = self.symbol_font.render(
-                        f"x{multiplier}", True, (30, 20, 20)
+                        f"x{multiplier}", True, (35, 20, 20)
+                    )
+
+                    self.screen.blit(
+                        bull_surface,
+                        (
+                            x + feature_cell_w // 2 - bull_surface.get_width() // 2,
+                            y + 10,
+                        ),
                     )
                     self.screen.blit(
                         multi_surface,
                         (
                             x + feature_cell_w // 2 - multi_surface.get_width() // 2,
-                            y + 35,
+                            y + 34,
                         ),
                     )
+                else:
+                    display_symbol = None
+
+                    if self.bull_feature_display_symbol_grid is not None:
+                        display_symbol = self.bull_feature_display_symbol_grid[
+                            row_index
+                        ][col_index]
+                    elif self.bull_feature_background_grid is not None:
+                        display_symbol = self.bull_feature_background_grid[row_index][
+                            col_index
+                        ]
+
+                    if display_symbol is not None:
+                        symbol_surface = self.small_font.render(
+                            display_symbol.display, True, (235, 235, 245)
+                        )
+                        self.screen.blit(
+                            symbol_surface,
+                            (
+                                x
+                                + feature_cell_w // 2
+                                - symbol_surface.get_width() // 2,
+                                y
+                                + feature_cell_h // 2
+                                - symbol_surface.get_height() // 2,
+                            ),
+                        )
+
+        collected_text = f"Collected Bulls: {self.bull_feature_result.collected_bulls}"
+        collected_surface = self.label_font.render(
+            collected_text, True, (245, 230, 210)
+        )
+        self.screen.blit(
+            collected_surface,
+            (board_rect.centerx - collected_surface.get_width() // 2, 510),
+        )
+
+        if self.bull_feature_phase in {"countup", "done"}:
+            total_display = self.bull_feature_countup_value
+        else:
+            total_display = 0
 
         total_surface = self.title_font.render(
-            f"Total Win: {self.bull_feature_result.total_win}",
+            f"Total Win: {total_display}",
             True,
             (255, 220, 120),
         )
         self.screen.blit(
             total_surface,
-            (board_rect.centerx - total_surface.get_width() // 2, 555),
+            (board_rect.centerx - total_surface.get_width() // 2, 550),
         )
+
+        if self.bull_feature_phase == "done" and self.bull_feature_finished_waiting:
+            self.draw_bull_feature_continue_button("CLOSE FEATURE")
 
     def draw_feature_continue_button(self, text: str) -> None:
         mouse_pos = pygame.mouse.get_pos()
@@ -1256,6 +1501,36 @@ class SlotUI:
                 - text_surface.get_width() // 2,
                 self.feature_continue_button_rect.y
                 + self.feature_continue_button_rect.height // 2
+                - text_surface.get_height() // 2,
+            ),
+        )
+
+    def draw_bull_feature_continue_button(self, text: str) -> None:
+        mouse_pos = pygame.mouse.get_pos()
+        hovered = self.bull_feature_continue_button_rect.collidepoint(mouse_pos)
+
+        color = (180, 120, 70) if not hovered else (210, 145, 90)
+
+        pygame.draw.rect(
+            self.screen, color, self.bull_feature_continue_button_rect, border_radius=12
+        )
+        pygame.draw.rect(
+            self.screen,
+            (255, 235, 200),
+            self.bull_feature_continue_button_rect,
+            width=3,
+            border_radius=12,
+        )
+
+        text_surface = self.label_font.render(text, True, TEXT_COLOR)
+        self.screen.blit(
+            text_surface,
+            (
+                self.bull_feature_continue_button_rect.x
+                + self.bull_feature_continue_button_rect.width // 2
+                - text_surface.get_width() // 2,
+                self.bull_feature_continue_button_rect.y
+                + self.bull_feature_continue_button_rect.height // 2
                 - text_surface.get_height() // 2,
             ),
         )
