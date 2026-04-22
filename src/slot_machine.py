@@ -195,7 +195,7 @@ def get_awarded_free_spins(scatter_count: int) -> int:
 
 
 def get_random_credit_value(bet: int) -> int:
-    multiplier = random.choice([1, 2, 2, 3, 5, 10])
+    multiplier = random.choice([1, 1, 1, 2, 2, 3])
     return bet * multiplier
 
 

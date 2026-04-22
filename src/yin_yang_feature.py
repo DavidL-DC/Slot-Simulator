@@ -5,6 +5,8 @@ import random
 ROWS = 3
 REELS = 5
 
+GRAND_COLUMN_HIT_CHANCE_MULTIPLIER = 0.15
+
 
 @dataclass
 class YinYangFeatureSpin:
@@ -45,15 +47,14 @@ def get_random_yin_value(bet: int) -> int:
         [
             1,
             1,
+            1,
             2,
             2,
             2,
-            3,
+            2,
             3,
             3,
             4,
-            4,
-            5,
         ]
     )
     return multiplier * bet
@@ -63,19 +64,14 @@ def get_random_column_multiplier() -> int:
     return random.choice(
         [
             1,
+            1,
             2,
             2,
+            2,
             3,
             3,
             3,
             4,
-            4,
-            4,
-            5,
-            5,
-            6,
-            7,
-            8,
         ]
     )
 
@@ -163,7 +159,7 @@ def maybe_activate_grand(
 def play_yin_yang_feature(
     bet: int,
     trigger_positions: list[tuple[int, int]],
-    hit_chance: float = 0.1,
+    hit_chance: float = 0.05,
 ) -> YinYangFeatureResult:
     grid = create_empty_grid()
 
@@ -184,7 +180,15 @@ def play_yin_yang_feature(
         for row_index in range(ROWS):
             for col_index in range(REELS):
                 if grid[row_index][col_index] is None:
-                    if random.random() < hit_chance:
+                    current_hit_chance = hit_chance
+
+                    if (
+                        grand_column_index is not None
+                        and col_index == grand_column_index
+                    ):
+                        current_hit_chance *= GRAND_COLUMN_HIT_CHANCE_MULTIPLIER
+
+                    if random.random() < current_hit_chance:
                         grid[row_index][col_index] = get_random_yin_value(bet)
                         new_positions.append((row_index, col_index))
 

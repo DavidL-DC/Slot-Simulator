@@ -28,7 +28,7 @@ from test_grids import (
     PAYLINE_TEST_CASES,
     SCATTER_TEST_CASES,
 )
-from simulation import print_simulation_stats, run_simulation
+from simulation import print_simulation_stats, run_simulation, print_balancing_summary
 
 
 def print_game_info() -> None:
@@ -239,7 +239,7 @@ def try_run_simulation(state: GameState, user_input: str) -> bool:
         base_game_spins=spin_count,
     )
 
-    print_simulation_stats(stats)
+    print_balancing_summary(stats)
     print()
 
     return True
@@ -298,10 +298,13 @@ def main() -> None:
     """print_game_info()
     print()
 
-    run_all_tests()"""
+    run_all_tests()
 
     state = GameState(balance=START_BALANCE, current_bet=DEFAULT_BET)
-    run_game_loop(state)
+    run_game_loop(state)"""
+
+    state = GameState(balance=START_BALANCE, current_bet=DEFAULT_BET)
+    try_run_simulation(state, "sim 1000000")
 
 
 if __name__ == "__main__":

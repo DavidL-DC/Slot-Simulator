@@ -111,8 +111,8 @@ def drop_bulls(collected_bulls: int) -> tuple[list[list[int]], list[BullDrop]]:
         else:
             weighted_positions: list[tuple[int, int]] = []
 
-            weighted_positions.extend(neighbor_empty_positions * 6)
-            weighted_positions.extend(empty_positions * 3)
+            weighted_positions.extend(neighbor_empty_positions * 4)
+            weighted_positions.extend(empty_positions * 5)
             weighted_positions.extend(occupied_positions * 1)
 
             landing_position = random.choice(weighted_positions)

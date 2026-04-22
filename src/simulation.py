@@ -60,6 +60,23 @@ class SimulationStats:
     bull_feature_triggers: int = 0
     total_bulls_collected: int = 0
 
+    base_game_yin_yang_triggers: int = 0
+    free_spin_yin_yang_triggers: int = 0
+
+    base_game_instant_win_triggers: int = 0
+    free_spin_instant_win_triggers: int = 0
+
+    free_spin_sessions: int = 0
+    completed_free_spin_sessions: int = 0
+    total_free_spin_session_win: int = 0
+
+    total_bull_feature_trigger_bulls: int = 0
+
+    total_yin_yang_triggers: int = 0
+    grand_activations: int = 0
+    grand_wins: int = 0
+    total_grand_win: int = 0
+
     def rtp(self) -> float:
         if self.total_bet == 0:
             return 0.0
@@ -99,6 +116,41 @@ class SimulationStats:
         if self.total_bet == 0:
             return 0.0
         return self.total_bull_feature_win / self.total_bet * 100
+
+    def avg_free_spins_per_trigger(self) -> float:
+        if self.scatter_triggers == 0:
+            return 0.0
+        return self.total_free_spins_awarded / self.scatter_triggers
+
+    def avg_free_spin_session_win(self) -> float:
+        if self.completed_free_spin_sessions == 0:
+            return 0.0
+        return self.total_free_spin_session_win / self.completed_free_spin_sessions
+
+    def avg_bulls_per_bull_feature(self) -> float:
+        if self.bull_feature_triggers == 0:
+            return 0.0
+        return self.total_bull_feature_trigger_bulls / self.bull_feature_triggers
+
+    def avg_bull_feature_win(self) -> float:
+        if self.bull_feature_triggers == 0:
+            return 0.0
+        return self.total_bull_feature_win / self.bull_feature_triggers
+
+    def grand_activation_rate_per_yin_yang(self) -> float:
+        if self.total_yin_yang_triggers == 0:
+            return 0.0
+        return self.grand_activations / self.total_yin_yang_triggers * 100
+
+    def grand_win_rate_per_activation(self) -> float:
+        if self.grand_activations == 0:
+            return 0.0
+        return self.grand_wins / self.grand_activations * 100
+
+    def grand_rtp(self) -> float:
+        if self.total_bet == 0:
+            return 0.0
+        return self.total_grand_win / self.total_bet * 100
 
 
 def record_line_hits(stats: SimulationStats, line_results: list[dict]) -> None:
@@ -154,6 +206,21 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
     instant_win = win_result["instant_win"]
     awarded_free_spins = win_result["awarded_free_spins"]
     scatter_count = win_result["scatter_count"]
+    yin_yang_triggered = win_result["yin_yang_feature_result"] is not None
+    instant_win_triggered = instant_win > 0
+
+    grand_activated = False
+    grand_won = False
+    grand_win_amount = 0
+
+    if yin_yang_triggered:
+        feature_result = win_result["yin_yang_feature_result"]
+        if feature_result is not None and feature_result.grand_column_index is not None:
+            grand_activated = True
+
+            if feature_result.grand_column_index in feature_result.completed_columns:
+                grand_won = True
+                grand_win_amount = 10000
 
     record_line_hits(stats, win_result["line_results"])
     record_scatter_distribution(stats, scatter_count)
@@ -165,6 +232,27 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
         stats.scatter_triggers += 1
         stats.total_free_spins_awarded += awarded_free_spins
         add_free_spins(state, awarded_free_spins)
+
+    if yin_yang_triggered:
+        if free_spin_mode:
+            stats.free_spin_yin_yang_triggers += 1
+        else:
+            stats.base_game_yin_yang_triggers += 1
+
+        stats.total_yin_yang_triggers += 1
+
+        if grand_activated:
+            stats.grand_activations += 1
+
+        if grand_won:
+            stats.grand_wins += 1
+            stats.total_grand_win += grand_win_amount
+
+    if instant_win_triggered:
+        if free_spin_mode:
+            stats.free_spin_instant_win_triggers += 1
+        else:
+            stats.base_game_instant_win_triggers += 1
 
     apply_win(state, total_win)
 
@@ -181,15 +269,17 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
         stats.free_spin_yin_yang_win += yin_yang_win
         stats.free_spin_instant_win += instant_win
     else:
-        stats.base_game_win += total_win
+        stats.base_game_win += line_win + scatter_win + instant_win
         stats.base_game_line_win += line_win
         stats.base_game_scatter_win += scatter_win
         stats.base_game_yin_yang_win += yin_yang_win
         stats.base_game_instant_win += instant_win
 
     if free_spin_mode and state.free_spins_remaining == 0 and state.collected_bulls > 0:
+        collected_bulls_for_feature = state.collected_bulls
+
         bull_feature_result = play_bull_feature(
-            collected_bulls=state.collected_bulls,
+            collected_bulls=collected_bulls_for_feature,
             bet=state.current_bet,
             paylines=PAYLINES,
         )
@@ -202,6 +292,7 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
         stats.free_spin_win += bull_feature_win
         stats.total_bull_feature_win += bull_feature_win
         stats.bull_feature_triggers += 1
+        stats.total_bull_feature_trigger_bulls += collected_bulls_for_feature
 
         state.collected_bulls = 0
 
@@ -213,6 +304,8 @@ def run_simulation(
     stats = SimulationStats()
 
     completed_base_spins = 0
+    free_spin_session_active = False
+    free_spin_session_start_win = 0
 
     while completed_base_spins < base_game_spins:
         if not is_free_spin(state):
@@ -222,10 +315,32 @@ def run_simulation(
                 break
             completed_base_spins += 1
 
+        if is_free_spin(state) and not free_spin_session_active:
+            free_spin_session_active = True
+            free_spin_session_start_win = stats.free_spin_win
+            stats.free_spin_sessions += 1
+
         simulate_single_spin(state, stats)
 
+        if free_spin_session_active and not is_free_spin(state):
+            session_win = stats.free_spin_win - free_spin_session_start_win
+            stats.total_free_spin_session_win += session_win
+            stats.completed_free_spin_sessions += 1
+            free_spin_session_active = False
+
     while is_free_spin(state):
+        if not free_spin_session_active:
+            free_spin_session_active = True
+            free_spin_session_start_win = stats.free_spin_win
+            stats.free_spin_sessions += 1
+
         simulate_single_spin(state, stats)
+
+        if free_spin_session_active and not is_free_spin(state):
+            session_win = stats.free_spin_win - free_spin_session_start_win
+            stats.total_free_spin_session_win += session_win
+            stats.completed_free_spin_sessions += 1
+            free_spin_session_active = False
 
     return stats
 
@@ -279,9 +394,35 @@ def print_simulation_stats(stats: SimulationStats) -> None:
     print()
     print(f"Scatter-Trigger: {stats.scatter_triggers}")
     print(f"Gewonnene Freispiele gesamt: {stats.total_free_spins_awarded}")
+    print(f"Ø Freispiele pro Trigger: {stats.avg_free_spins_per_trigger():.2f}")
+    print(f"Freispiele-Sessions: {stats.free_spin_sessions}")
+    print(f"Abgeschlossene Freispiele-Sessions: {stats.completed_free_spin_sessions}")
+    print(
+        f"Ø Freispiele-Gesamtgewinn pro Session: {stats.avg_free_spin_session_win():.2f}"
+    )
     print()
     print(f"Bull-Feature Trigger: {stats.bull_feature_triggers}")
     print(f"Gesammelte Bulls gesamt: {stats.total_bulls_collected}")
+    print(f"Ø Bulls pro Bull-Feature: {stats.avg_bulls_per_bull_feature():.2f}")
+    print(f"Ø Bull-Feature Gewinn: {stats.avg_bull_feature_win():.2f}")
+    print()
+    print("=== FEATURE TRIGGER ===")
+    print(f"Base Game Yin-Yang Trigger: {stats.base_game_yin_yang_triggers}")
+    print(f"Freispiel Yin-Yang Trigger: {stats.free_spin_yin_yang_triggers}")
+    print(f"Base Game Instant-Win Trigger: {stats.base_game_instant_win_triggers}")
+    print(f"Freispiel Instant-Win Trigger: {stats.free_spin_instant_win_triggers}")
+    print(f"Yin-Yang Trigger gesamt: {stats.total_yin_yang_triggers}")
+    print(f"Grand Aktivierungen: {stats.grand_activations}")
+    print(f"Grand Gewinne: {stats.grand_wins}")
+    print(
+        f"Grand Aktivierungsrate pro Yin-Yang: {stats.grand_activation_rate_per_yin_yang():.2f}%"
+    )
+    print(
+        f"Grand Gewinnrate pro Aktivierung: {stats.grand_win_rate_per_activation():.2f}%"
+    )
+    print(f"Grand Gewinn gesamt: {stats.total_grand_win}")
+    print(f"Grand RTP: {stats.grand_rtp():.2f}%")
+    print()
     print()
     print("=== DETAIL GEWINNE ===")
     print(f"Liniengewinn gesamt: {stats.total_line_win}")
@@ -305,3 +446,77 @@ def print_simulation_stats(stats: SimulationStats) -> None:
     print_line_hit_stats(stats)
     print()
     print_scatter_distribution(stats)
+
+
+def print_balancing_summary(stats: SimulationStats) -> None:
+    print("=== BALANCING SUMMARY ===")
+    print(
+        f"Spins={stats.total_spins} | "
+        f"Base={stats.base_game_spins} | "
+        f"FS={stats.free_spins_played}"
+    )
+    print(
+        f"Bet={stats.total_bet} | "
+        f"Win={stats.total_win} | "
+        f"RTP={stats.rtp():.2f}% | "
+        f"Hit Rate={stats.hit_rate():.2f}%"
+    )
+    print()
+
+    print("RTP Split:")
+    print(
+        f"  Line={stats.line_rtp():.2f}% | "
+        f"Scatter={stats.scatter_rtp():.2f}% | "
+        f"Yin-Yang={stats.yin_yang_rtp():.2f}% | "
+        f"Bull Feature={stats.bull_feature_rtp():.2f}% | "
+        f"Grand RTP={stats.grand_rtp():.2f}%"
+    )
+    print(
+        f"  Base Game={stats.base_game_rtp():.2f}% | "
+        f"Free Spins={stats.free_spin_rtp():.2f}%"
+    )
+    print()
+
+    print("Feature Trigger:")
+    print(
+        f"  Scatter Trigger={stats.scatter_triggers} | "
+        f"FS awarded={stats.total_free_spins_awarded} | "
+        f"Avg FS/Trigger={stats.avg_free_spins_per_trigger():.2f}"
+    )
+    print(
+        f"  Yin-Yang Base={stats.base_game_yin_yang_triggers} | "
+        f"Yin-Yang FS={stats.free_spin_yin_yang_triggers}"
+    )
+    print(
+        f"  Instant Base={stats.base_game_instant_win_triggers} | "
+        f"Instant FS={stats.free_spin_instant_win_triggers}"
+    )
+    print(
+        f"  Bull Feature Trigger={stats.bull_feature_triggers} | "
+        f"Avg Bulls/Bull Feature={stats.avg_bulls_per_bull_feature():.2f}"
+    )
+    print()
+    print(
+        f"  Grand Activations={stats.grand_activations} | "
+        f"Grand Wins={stats.grand_wins} | "
+        f"Grand Act/Yin-Yang={stats.grand_activation_rate_per_yin_yang():.2f}% | "
+        f"Grand Win/Activation={stats.grand_win_rate_per_activation():.2f}%"
+    )
+    print()
+
+    print("Free Games:")
+    print(
+        f"  Sessions={stats.completed_free_spin_sessions} | "
+        f"Total FS Win={stats.free_spin_win} | "
+        f"Avg FS Total Win/Session={stats.avg_free_spin_session_win():.2f}"
+    )
+    print()
+
+    print("Feature Wins:")
+    print(
+        f"  Yin-Yang Total={stats.total_yin_yang_win} | "
+        f"Instant Total={stats.total_instant_win} | "
+        f"Bull Feature Total={stats.total_bull_feature_win} | "
+        f"Grand Total={stats.total_grand_win}"
+    )
+    print(f"  Avg Bull Feature Win={stats.avg_bull_feature_win():.2f}")
