@@ -162,7 +162,7 @@ def evaluate_line_symbols(
 
     line_bet = get_line_bet(bet)
     multiplier = payouts.get(match_count, 0)
-    return line_bet * multiplier
+    return round(line_bet * multiplier, 2)
 
 
 def evaluate_middle_row(grid: list[list[Symbol]], bet: int | float) -> float:
@@ -195,7 +195,7 @@ def evaluate_all_paylines(
 
         total_win += win
 
-    return total_win, line_results
+    return round(total_win, 2), line_results
 
 
 def count_scatters(grid: list[list[Symbol]]) -> int:
@@ -338,7 +338,7 @@ def evaluate_total_win(
         grid, bet
     )
 
-    total_win = line_win + scatter_win + yin_yang_win + instant_win
+    total_win = round(line_win + scatter_win + yin_yang_win + instant_win, 2)
 
     return {
         "line_win": line_win,

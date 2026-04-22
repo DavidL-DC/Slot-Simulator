@@ -30,11 +30,11 @@ Basegame:
 
 ~~- Line Wins pro Line Bet auswerten~~
 
-\- Multiplikatoren: x1, x2, x3, x5 und x10
+~~- Multiplikatoren: x1, x2, x3, x5 und x10~~
 
-\- Denom: 1ct, 2ct, 5ct, 10ct und 1€
+~~- Denom: 1ct, 2ct, 5ct, 10ct und 1€~~
 
-\- Mindesteinsatz: 50ct
+~~- Mindesteinsatz: 50ct~~
 
 \- Verschiedene Reels je nach Anzahl gewetteter Credits
 
@@ -42,7 +42,7 @@ Basegame:
 
 ~~- 50 Win Lines nachbauen~~
 
-\- Abrunden auf 2 Nachkommastellen
+~~- Abrunden auf 2 Nachkommastellen~~
 
 
 
