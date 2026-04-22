@@ -848,7 +848,7 @@ class SlotUI:
         else:
             apply_bet(self.state)
             self.status_text = "Walzen drehen..."
-            self.final_grid = spin_reels()
+            self.final_grid = spin_reels(self.state.current_bet)
 
         win_result = evaluate_total_win(
             self.final_grid, self.state.current_bet, free_spin_mode
@@ -1177,18 +1177,20 @@ class SlotUI:
         pygame.draw.rect(self.screen, PANEL_COLOR, panel_rect, border_radius=12)
 
         values = [
-            f"Guthaben: {self.state.balance}",
-            f"Einsatz: {self.state.current_bet}",
+            f"Guthaben: {self.state.balance:.2f}",
+            f"Einsatz: {self.state.current_bet:.2f}",
+            f"Denom: {self.state.denom:.2f}",
+            f"Credits: {self.state.credits_bet}",
             f"Freispiele: {self.state.free_spins_remaining}",
             f"Bulls: {self.state.collected_bulls}",
             f"Letzter Gewinn: {self.last_total_win}",
         ]
 
-        x = 80
-        for text in values:
-            surface = self.label_font.render(text, True, TEXT_COLOR)
+        positions = [70, 210, 340, 470, 620, 760, 870]
+
+        for x, text in zip(positions, values):
+            surface = self.small_font.render(text, True, TEXT_COLOR)
             self.screen.blit(surface, (x, 97))
-            x += 210
 
         if is_free_spin(self.state) or self.pending_free_spin_mode:
             fs_surface = self.small_font.render(

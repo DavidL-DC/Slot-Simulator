@@ -10,8 +10,8 @@ GRAND_COLUMN_HIT_CHANCE_MULTIPLIER = 0.15
 
 @dataclass
 class YinYangFeatureSpin:
-    grid_values: list[list[int | None]]
-    column_values: list[int]
+    grid_values: list[list[float | None]]
+    column_values: list[float]
     new_positions: list[tuple[int, int]]
     spins_left_after: int
     completed_columns: list[int]
@@ -22,27 +22,27 @@ class YinYangFeatureSpin:
 @dataclass
 class YinYangFeatureResult:
     trigger_positions: list[tuple[int, int]]
-    start_grid_values: list[list[int | None]]
-    start_column_values: list[int]
+    start_grid_values: list[list[float | None]]
+    start_column_values: list[float]
     spins: list[YinYangFeatureSpin]
-    final_grid_values: list[list[int | None]]
-    final_column_values: list[int]
+    final_grid_values: list[list[float | None]]
+    final_column_values: list[float]
     completed_columns: list[int]
     grand_column_index: int | None
-    symbol_total: int
-    column_bonus_total: int
-    total_win: int
+    symbol_total: float
+    column_bonus_total: float
+    total_win: float
 
 
-def copy_grid(grid: list[list[int | None]]) -> list[list[int | None]]:
+def copy_grid(grid: list[list[float | None]]) -> list[list[float | None]]:
     return [row.copy() for row in grid]
 
 
-def create_empty_grid() -> list[list[int | None]]:
+def create_empty_grid() -> list[list[float | None]]:
     return [[None for _ in range(REELS)] for _ in range(ROWS)]
 
 
-def get_random_yin_value(bet: int) -> int:
+def get_random_yin_value(bet: float) -> float:
     multiplier = random.choice(
         [
             1,
@@ -57,7 +57,7 @@ def get_random_yin_value(bet: int) -> int:
             4,
         ]
     )
-    return multiplier * bet
+    return round(multiplier * bet, 2)
 
 
 def get_random_column_multiplier() -> int:
@@ -76,11 +76,11 @@ def get_random_column_multiplier() -> int:
     )
 
 
-def create_initial_column_values(bet: int) -> list[int]:
-    return [get_random_column_multiplier() * bet for _ in range(REELS)]
+def create_initial_column_values(bet: float) -> list[float]:
+    return [round(get_random_column_multiplier() * bet, 2) for _ in range(REELS)]
 
 
-def get_completed_columns(grid: list[list[int | None]]) -> list[int]:
+def get_completed_columns(grid: list[list[float | None]]) -> list[int]:
     completed_columns: list[int] = []
 
     for col_index in range(REELS):
@@ -95,23 +95,23 @@ def get_random_column_increase_factor() -> float:
 
 
 def increase_column_values(
-    column_values: list[int],
+    column_values: list[float],
     completed_columns: list[int],
-) -> list[int]:
-    new_values: list[int] = []
+) -> list[float]:
+    new_values: list[float] = []
     factor = get_random_column_increase_factor()
 
     for col_index, value in enumerate(column_values):
         if col_index in completed_columns:
             new_values.append(value)
         else:
-            new_value = int(round(value * factor))
+            new_value = round(value * factor, 2)
             new_values.append(new_value)
 
     return new_values
 
 
-def calculate_symbol_total(grid: list[list[int | None]]) -> int:
+def calculate_symbol_total(grid: list[list[float | None]]) -> float:
     total = 0
 
     for row in grid:
@@ -119,10 +119,10 @@ def calculate_symbol_total(grid: list[list[int | None]]) -> int:
             if value is not None:
                 total += value
 
-    return total
+    return round(total, 2)
 
 
-def count_filled_positions(grid: list[list[int | None]]) -> int:
+def count_filled_positions(grid: list[list[float | None]]) -> int:
     filled = 0
 
     for row in grid:
@@ -134,7 +134,7 @@ def count_filled_positions(grid: list[list[int | None]]) -> int:
 
 
 def maybe_activate_grand(
-    grid: list[list[int | None]],
+    grid: list[list[float | None]],
     current_grand_column_index: int | None,
 ) -> int | None:
     if current_grand_column_index is not None:
@@ -157,7 +157,7 @@ def maybe_activate_grand(
 
 
 def play_yin_yang_feature(
-    bet: int,
+    bet: float,
     trigger_positions: list[tuple[int, int]],
     hit_chance: float = 0.05,
 ) -> YinYangFeatureResult:
@@ -228,7 +228,7 @@ def play_yin_yang_feature(
         else:
             column_bonus_total += column_values[col_index]
 
-    total_win = symbol_total + column_bonus_total
+    total_win = round(symbol_total + column_bonus_total, 2)
 
     return YinYangFeatureResult(
         trigger_positions=trigger_positions.copy(),

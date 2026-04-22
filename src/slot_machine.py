@@ -28,11 +28,21 @@ def get_visible_symbols(
     return visible_symbols
 
 
+def get_reel_set_key_for_bet(total_bet: float) -> str:
+    if total_bet < 1:
+        return "low"
+    if total_bet < 5:
+        return "mid"
+    return "high"
+
+
 def get_line_bet(total_bet: int | float) -> float:
     return total_bet / len(PAYLINES)
 
 
-def spin_reels() -> list[list[Symbol]]:
+def spin_reels(total_bet: float = 1.0) -> list[list[Symbol]]:
+    reel_set_key = get_reel_set_key_for_bet(total_bet)
+
     columns: list[list[Symbol]] = []
 
     for reel_index in range(REELS):
@@ -199,11 +209,11 @@ def count_scatters(grid: list[list[Symbol]]) -> int:
     return scatter_count
 
 
-def evaluate_scatters(grid: list[list[Symbol]], bet: int) -> tuple[int, int]:
+def evaluate_scatters(grid: list[list[Symbol]], bet: float) -> tuple[int, float]:
     scatter_count = count_scatters(grid)
     capped_count = min(scatter_count, max(SCATTER_PAYOUTS))
     multiplier = SCATTER_PAYOUTS.get(capped_count, 0)
-    scatter_win = bet * multiplier
+    scatter_win = round(bet * multiplier, 2)
     return scatter_count, scatter_win
 
 
@@ -212,9 +222,8 @@ def get_awarded_free_spins(scatter_count: int) -> int:
     return FREE_SPINS_AWARDED.get(capped_count, 0)
 
 
-def get_random_credit_value(bet: int) -> int:
-    multiplier = random.choice([1, 1, 1, 2, 2, 3])
-    return bet * multiplier
+def get_random_credit_multiplier() -> int:
+    return random.choice([2, 3, 4, 5, 8, 10, 10, 50, 100, 200])
 
 
 def spin_reels_free_spins() -> list[list[Symbol]]:
@@ -259,8 +268,8 @@ def count_yin_yang_symbols(grid: list[list[Symbol]]) -> int:
 
 def evaluate_yin_yang_feature(
     grid: list[list[Symbol]],
-    bet: int,
-) -> tuple[int, int, YinYangFeatureResult | None]:
+    bet: float,
+) -> tuple[int, float, YinYangFeatureResult | None]:
     trigger_positions = get_yin_yang_positions(grid)
     yin_yang_count = len(trigger_positions)
 
@@ -269,7 +278,7 @@ def evaluate_yin_yang_feature(
 
     feature_result = play_yin_yang_feature(bet, trigger_positions)
 
-    return yin_yang_count, feature_result.total_win, feature_result
+    return yin_yang_count, round(feature_result.total_win, 2), feature_result
 
 
 def get_yin_yang_positions(grid: list[list[Symbol]]) -> list[tuple[int, int]]:
@@ -306,7 +315,7 @@ def get_collector_positions(grid: list[list[Symbol]]) -> list[tuple[int, int]]:
 
 
 def evaluate_total_win(
-    grid: list[list[Symbol]], bet: int, free_spin_mode: bool = False
+    grid: list[list[Symbol]], bet: float, free_spin_mode: bool = False
 ) -> dict:
     line_win, line_results = evaluate_all_paylines(grid, bet, free_spin_mode)
 
@@ -350,22 +359,37 @@ def evaluate_total_win(
 
 def evaluate_instant_win_feature(
     grid: list[list[Symbol]],
-    bet: int,
+    bet: float,
 ) -> tuple[
-    int, dict[tuple[int, int], int], list[tuple[int, int]], list[tuple[int, int]]
+    float, dict[tuple[int, int], float], list[tuple[int, int]], list[tuple[int, int]]
 ]:
     credit_positions = get_credit_positions(grid)
     collector_positions = get_collector_positions(grid)
 
-    credit_values: dict[tuple[int, int], int] = {}
+    credit_values: dict[tuple[int, int], float] = {}
+
+    high_values_used = {
+        100: False,
+        200: False,
+    }
 
     for position in credit_positions:
-        credit_values[position] = get_random_credit_value(bet)
+        while True:
+            multiplier = get_random_credit_multiplier()
+
+            if multiplier in {100, 200} and high_values_used[multiplier]:
+                continue
+
+            if multiplier in {100, 200}:
+                high_values_used[multiplier] = True
+
+            credit_values[position] = round(bet * multiplier, 2)
+            break
 
     if not credit_positions or not collector_positions:
         return 0, credit_values, credit_positions, collector_positions
 
-    instant_win = sum(credit_values.values())
+    instant_win = round(sum(credit_values.values()), 2)
 
     return instant_win, credit_values, credit_positions, collector_positions
 
@@ -506,7 +530,7 @@ def run_scatter_test_case(
     return passed
 
 
-def trigger_debug_yin_yang_feature(bet: int) -> dict:
+def trigger_debug_yin_yang_feature(bet: float) -> dict:
     trigger_positions = [(0, 0), (1, 2), (2, 4)]
     feature_result = play_yin_yang_feature(bet, trigger_positions)
 

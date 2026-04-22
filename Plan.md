@@ -18,15 +18,13 @@ Freispiele:
 
 ~~- Bull Multiplier in einer Linie werden multipliziert -> Max x18 pro Linie~~
 
-\- Zahlt nicht, wenn bull am anfang
-
 
 
 Basegame:
 
 ~~- Neuer Paytable (9 und 10 zahlen bei 3 x5, bei 4 x10, bei 5 x30. J, Q und K zahlen bei 3 x5, bei 4 x10 und bei 5 x50. Vase, Laterne und Gong zahlen bei 3 x5, bei 4 x15 und bei 5 x75. Haus zahlt bei 3 x5, bei 5 x20 und bei 5 x100)~~
 
-\- Bulls nur auf Reel 2-5
+~~- Bulls nur auf Reel 2-5~~
 
 \- Instant Wins = Gesamteinsatz x (2, 3, 4, 5, 8, 10, 10, 50, 100, 200) oder Mini, Minor, Maxi oder Major -> 100, 200, Maxi oder Major nur einer pro Spin möglich
 

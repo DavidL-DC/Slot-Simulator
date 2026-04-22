@@ -18,7 +18,7 @@ class BullDrop:
 @dataclass
 class BullLineWin:
     line_index: int
-    win: int
+    win: float
     multiplier_used: int
     matched_symbol_name: str | None
 
@@ -30,7 +30,7 @@ class BullFeatureResult:
     drops: list[BullDrop]
     final_symbol_grid: list[list[Symbol]]
     line_wins: list[BullLineWin]
-    total_win: int
+    total_win: float
 
 
 def create_empty_multiplier_grid() -> list[list[int]]:
@@ -233,8 +233,8 @@ def evaluate_bull_feature_paylines(
     final_symbol_grid: list[list[Symbol]],
     multiplier_grid: list[list[int]],
     paylines: list[list[int]],
-    bet: int,
-) -> tuple[int, list[BullLineWin]]:
+    bet: float,
+) -> tuple[float, list[BullLineWin]]:
     total_win = 0.0
     line_wins: list[BullLineWin] = []
 
@@ -246,7 +246,7 @@ def evaluate_bull_feature_paylines(
 
         # SPECIAL: 5 Bulls auf einer Linie zahlen x75
         if all(symbol.name == "bull" for symbol in line_symbols):
-            final_win = round(line_bet * 75)
+            final_win = round(line_bet * 75, 2)
             total_win += final_win
             line_wins.append(
                 BullLineWin(
@@ -295,12 +295,12 @@ def evaluate_bull_feature_paylines(
             )
         )
 
-    return round(total_win), line_wins
+    return round(total_win, 2), line_wins
 
 
 def play_bull_feature(
     collected_bulls: int,
-    bet: int,
+    bet: float,
     paylines: list[list[int]],
 ) -> BullFeatureResult:
     multiplier_grid, drops = drop_bulls(collected_bulls)

@@ -20,6 +20,13 @@ REELS = 5
 
 START_BALANCE = 100
 DEFAULT_BET = 1
+MIN_BET = 0.5
+
+AVAILABLE_DENOMS = [0.01, 0.02, 0.05, 0.10, 1.00]
+AVAILABLE_CREDITS = [1, 2, 3, 5, 10]
+
+DEFAULT_DENOM = 0.01
+DEFAULT_CREDITS_BET = 100
 
 PAYLINES = [
     [1, 1, 1, 1, 1],  # 1
@@ -124,7 +131,7 @@ REEL_STRIPS = [
         VASE,
         TEN,
         JACK,
-        BULL,
+        KING,
         CREDIT,
         COIN,
     ],

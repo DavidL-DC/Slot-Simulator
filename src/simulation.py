@@ -24,14 +24,14 @@ class SimulationStats:
     base_game_spins: int = 0
     free_spins_played: int = 0
 
-    total_bet: int = 0
-    total_win: int = 0
+    total_bet: float = 0
+    total_win: float = 0
 
     total_line_win: int = 0
     total_scatter_win: int = 0
 
     base_game_win: int = 0
-    free_spin_win: int = 0
+    free_spin_win: float = 0
 
     base_game_line_win: int = 0
     free_spin_line_win: int = 0
@@ -56,7 +56,7 @@ class SimulationStats:
     base_game_instant_win: int = 0
     free_spin_instant_win: int = 0
 
-    total_bull_feature_win: int = 0
+    total_bull_feature_win: float = 0
     bull_feature_triggers: int = 0
     total_bulls_collected: int = 0
 
@@ -68,7 +68,7 @@ class SimulationStats:
 
     free_spin_sessions: int = 0
     completed_free_spin_sessions: int = 0
-    total_free_spin_session_win: int = 0
+    total_free_spin_session_win: float = 0
 
     total_bull_feature_trigger_bulls: int = 0
 
@@ -219,7 +219,7 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
         state.collected_bulls += bulls_this_spin
         stats.total_bulls_collected += bulls_this_spin
     else:
-        grid = spin_reels()
+        grid = spin_reels(state.current_bet)
 
     win_result = evaluate_total_win(grid, state.current_bet, free_spin_mode)
 
@@ -301,7 +301,7 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
 
 
 def run_simulation(
-    start_balance: int, bet: int, base_game_spins: int
+    start_balance: float, bet: float, base_game_spins: int
 ) -> SimulationStats:
     state = GameState(balance=start_balance, current_bet=bet)
     stats = SimulationStats()

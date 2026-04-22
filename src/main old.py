@@ -8,6 +8,8 @@ from game import (
     consume_free_spin,
     is_free_spin,
     set_bet,
+    set_credits_bet,
+    set_denom,
 )
 from slot_machine import (
     evaluate_total_win,
@@ -141,7 +143,7 @@ def play_single_round(state: GameState) -> None:
 
     print()
 
-    grid = spin_reels()
+    grid = spin_reels(state.current_bet)
     print_grid(grid)
     print()
 
@@ -205,6 +207,55 @@ def try_change_bet(state: GameState, user_input: str) -> bool:
     return True
 
 
+def try_change_denom_or_credits(state: GameState, user_input: str) -> bool:
+    parts = user_input.split()
+
+    if len(parts) != 2:
+        return False
+
+    command, value = parts
+
+    if command == "denom":
+        try:
+            new_denom = float(value)
+        except ValueError:
+            print("Denom muss eine Zahl sein.")
+            print()
+            return True
+
+        if set_denom(state, new_denom):
+            print(
+                f"Neue Denom: {state.denom:.2f} | "
+                f"Neuer Einsatz: {state.current_bet:.2f}"
+            )
+        else:
+            print("Ungültige Denom oder Einsatz außerhalb der Grenzen.")
+
+        print()
+        return True
+
+    if command == "credits":
+        try:
+            new_credits = int(value)
+        except ValueError:
+            print("Credits müssen eine ganze Zahl sein.")
+            print()
+            return True
+
+        if set_credits_bet(state, new_credits):
+            print(
+                f"Neue Credits: {state.credits_bet} | "
+                f"Neuer Einsatz: {state.current_bet:.2f}"
+            )
+        else:
+            print("Ungültige Credits oder Einsatz außerhalb der Grenzen.")
+
+        print()
+        return True
+
+    return False
+
+
 def try_run_simulation(state: GameState, user_input: str) -> bool:
     parts = user_input.split()
 
@@ -249,6 +300,8 @@ def run_game_loop(state: GameState) -> None:
     print("=== SPIEL STARTEN ===")
     print("Drücke Enter für einen Spin.")
     print("Gib 'bet <zahl>' ein, um den Einsatz zu ändern.")
+    print("Gib 'denom <wert>' ein, um die Denom zu ändern.")
+    print("Gib 'credits <zahl>' ein, um die Credits zu ändern.")
     print("Gib 'sim <anzahl>' ein, um eine Simulation zu starten.")
     print("Gib 'q' ein, um zu beenden.")
     print()
@@ -263,7 +316,12 @@ def run_game_loop(state: GameState) -> None:
             print(f"Freispiele aktiv: {state.free_spins_remaining}")
             print("Drücke Enter für das nächste Freispiel oder 'q' zum Beenden.")
         else:
-            print(f"Guthaben: {state.balance} | Einsatz: {state.current_bet}")
+            print(
+                f"Guthaben: {state.balance:.2f} | "
+                f"Einsatz: {state.current_bet:.2f} | "
+                f"Denom: {state.denom:.2f} | "
+                f"Credits: {state.credits_bet}"
+            )
 
         user_input = input("> ").strip().lower()
 
@@ -281,6 +339,9 @@ def run_game_loop(state: GameState) -> None:
             continue
 
         if try_change_bet(state, user_input):
+            continue
+
+        if try_change_denom_or_credits(state, user_input):
             continue
 
         if try_run_simulation(state, user_input):
