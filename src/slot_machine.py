@@ -1,5 +1,7 @@
 import random
 
+from dataclasses import dataclass
+
 from config import (
     FREE_SPINS_AWARDED,
     FREE_SPIN_REEL_STRIPS,
@@ -9,10 +11,19 @@ from config import (
     ROWS,
     SCATTER_PAYOUTS,
     FREE_SPIN_PAYOUTS,
+    INSTANT_WIN_CREDIT_MULTIPLIERS,
+    JACKPOT_VALUES,
 )
 
 from symbols import Symbol
 from yin_yang_feature import YinYangFeatureResult, play_yin_yang_feature
+
+
+@dataclass(frozen=True)
+class InstantWinValue:
+    kind: str  # "credit", "mini", "minor", "maxi", "major"
+    value: float
+    label: str
 
 
 def get_visible_symbols(
@@ -223,7 +234,7 @@ def get_awarded_free_spins(scatter_count: int) -> int:
 
 
 def get_random_credit_multiplier() -> int:
-    return random.choice([2, 3, 4, 5, 8, 10, 10, 50, 100, 200])
+    return random.choice([2, 3, 4, 5, 8, 10, 20, 50, 100, 200])
 
 
 def spin_reels_free_spins() -> list[list[Symbol]]:
@@ -314,6 +325,50 @@ def get_collector_positions(grid: list[list[Symbol]]) -> list[tuple[int, int]]:
     return positions
 
 
+def build_instant_win_value_pool(total_bet: float) -> list[InstantWinValue]:
+    pool: list[InstantWinValue] = []
+
+    for multiplier in INSTANT_WIN_CREDIT_MULTIPLIERS:
+        pool.append(
+            InstantWinValue(
+                kind="credit",
+                value=round(total_bet * multiplier, 2),
+                label=str(multiplier),
+            )
+        )
+
+    pool.append(
+        InstantWinValue(
+            kind="mini",
+            value=round(JACKPOT_VALUES["mini"], 2),
+            label="MINI",
+        )
+    )
+    pool.append(
+        InstantWinValue(
+            kind="minor",
+            value=round(JACKPOT_VALUES["minor"], 2),
+            label="MINOR",
+        )
+    )
+    pool.append(
+        InstantWinValue(
+            kind="maxi",
+            value=round(JACKPOT_VALUES["maxi"], 2),
+            label="MAXI",
+        )
+    )
+    pool.append(
+        InstantWinValue(
+            kind="major",
+            value=round(JACKPOT_VALUES["major"], 2),
+            label="MAJOR",
+        )
+    )
+
+    return pool
+
+
 def evaluate_total_win(
     grid: list[list[Symbol]], bet: float, free_spin_mode: bool = False
 ) -> dict:
@@ -361,35 +416,41 @@ def evaluate_instant_win_feature(
     grid: list[list[Symbol]],
     bet: float,
 ) -> tuple[
-    float, dict[tuple[int, int], float], list[tuple[int, int]], list[tuple[int, int]]
+    float,
+    dict[tuple[int, int], InstantWinValue],
+    list[tuple[int, int]],
+    list[tuple[int, int]],
 ]:
     credit_positions = get_credit_positions(grid)
     collector_positions = get_collector_positions(grid)
 
-    credit_values: dict[tuple[int, int], float] = {}
+    credit_values: dict[tuple[int, int], InstantWinValue] = {}
 
-    high_values_used = {
-        100: False,
-        200: False,
-    }
+    pool = build_instant_win_value_pool(bet)
+
+    high_value_used = False
 
     for position in credit_positions:
         while True:
-            multiplier = get_random_credit_multiplier()
+            candidate = random.choice(pool)
 
-            if multiplier in {100, 200} and high_values_used[multiplier]:
-                continue
+            if (
+                candidate.kind == "credit" and candidate.label in {"100", "200"}
+            ) or candidate.kind in {"maxi", "major"}:
+                if high_value_used:
+                    continue
+                else:
+                    high_value_used = True
 
-            if multiplier in {100, 200}:
-                high_values_used[multiplier] = True
-
-            credit_values[position] = round(bet * multiplier, 2)
+            credit_values[position] = candidate
             break
 
     if not credit_positions or not collector_positions:
-        return 0, credit_values, credit_positions, collector_positions
+        return 0.0, credit_values, credit_positions, collector_positions
 
-    instant_win = round(sum(credit_values.values()), 2)
+    instant_win = round(
+        sum(instant_win.value for instant_win in credit_values.values()), 2
+    )
 
     return instant_win, credit_values, credit_positions, collector_positions
 

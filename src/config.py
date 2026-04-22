@@ -81,6 +81,15 @@ PAYLINES = [
     [2, 1, 1, 1, 0],  # 50
 ]
 
+INSTANT_WIN_CREDIT_MULTIPLIERS = [2, 3, 4, 5, 8, 10, 20, 50, 100, 200]
+
+JACKPOT_VALUES = {
+    "mini": 10,
+    "minor": 50,
+    "maxi": 500,  # Progressive
+    "major": 1000,  # Progressive
+}
+
 FREE_SPIN_PAYOUTS = {
     "nine": {3: 5, 4: 8, 5: 25},
     "ten": {3: 5, 4: 8, 5: 30},
