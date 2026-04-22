@@ -1181,7 +1181,41 @@ class SlotUI:
             self.screen.blit(surface, (x, 97))
             x += 210
 
+        if is_free_spin(self.state) or self.pending_free_spin_mode:
+            fs_surface = self.small_font.render(
+                "FREE SPINS ACTIVE", True, (255, 220, 120)
+            )
+            self.screen.blit(fs_surface, (700, 115))
+
     def draw_grid(self) -> None:
+        if is_free_spin(self.state) or self.pending_free_spin_mode:
+            highlight_rect = pygame.Rect(
+                GRID_X - 14,
+                GRID_Y - 14,
+                GRID_COLS * CELL_WIDTH + (GRID_COLS - 1) * CELL_GAP + 28,
+                GRID_ROWS * CELL_HEIGHT + (GRID_ROWS - 1) * CELL_GAP + 28,
+            )
+
+            pygame.draw.rect(
+                self.screen,
+                (210, 170, 60),
+                highlight_rect,
+                border_radius=18,
+            )
+
+            inner_highlight_rect = pygame.Rect(
+                GRID_X - 8,
+                GRID_Y - 8,
+                GRID_COLS * CELL_WIDTH + (GRID_COLS - 1) * CELL_GAP + 16,
+                GRID_ROWS * CELL_HEIGHT + (GRID_ROWS - 1) * CELL_GAP + 16,
+            )
+
+            pygame.draw.rect(
+                self.screen,
+                BACKGROUND_COLOR,
+                inner_highlight_rect,
+                border_radius=16,
+            )
         for row_index, row in enumerate(self.current_grid):
             for col_index, symbol in enumerate(row):
                 x = GRID_X + col_index * (CELL_WIDTH + CELL_GAP)

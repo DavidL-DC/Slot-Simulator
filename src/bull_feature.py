@@ -45,14 +45,79 @@ def get_bull_feature_symbol_pool() -> list[Symbol]:
     ]
 
 
+def get_neighbor_positions(
+    row_index: int,
+    col_index: int,
+) -> list[tuple[int, int]]:
+    neighbors: list[tuple[int, int]] = []
+
+    for row_offset in (-1, 0, 1):
+        for col_offset in (-1, 0, 1):
+            if row_offset == 0 and col_offset == 0:
+                continue
+
+            new_row = row_index + row_offset
+            new_col = col_index + col_offset
+
+            if 0 <= new_row < ROWS and 0 <= new_col < REELS:
+                neighbors.append((new_row, new_col))
+
+    return neighbors
+
+
+def get_all_positions() -> list[tuple[int, int]]:
+    return [
+        (row_index, col_index)
+        for row_index in range(ROWS)
+        for col_index in range(REELS)
+    ]
+
+
 def drop_bulls(collected_bulls: int) -> tuple[list[list[int]], list[BullDrop]]:
     multiplier_grid = create_empty_multiplier_grid()
     drops: list[BullDrop] = []
 
-    for bull_index in range(collected_bulls):
-        row_index = random.randint(0, ROWS - 1)
-        col_index = random.randint(0, REELS - 1)
+    all_positions = get_all_positions()
 
+    for bull_index in range(collected_bulls):
+        occupied_positions = [
+            (row_index, col_index)
+            for row_index in range(ROWS)
+            for col_index in range(REELS)
+            if multiplier_grid[row_index][col_index] > 0
+        ]
+
+        empty_positions = [
+            position
+            for position in all_positions
+            if multiplier_grid[position[0]][position[1]] == 0
+        ]
+
+        neighbor_empty_positions: list[tuple[int, int]] = []
+        if occupied_positions:
+            neighbor_set = set()
+
+            for occupied_row, occupied_col in occupied_positions:
+                for neighbor_position in get_neighbor_positions(
+                    occupied_row, occupied_col
+                ):
+                    if multiplier_grid[neighbor_position[0]][neighbor_position[1]] == 0:
+                        neighbor_set.add(neighbor_position)
+
+            neighbor_empty_positions = list(neighbor_set)
+
+        if not occupied_positions:
+            landing_position = random.choice(all_positions)
+        else:
+            weighted_positions: list[tuple[int, int]] = []
+
+            weighted_positions.extend(neighbor_empty_positions * 6)
+            weighted_positions.extend(empty_positions * 3)
+            weighted_positions.extend(occupied_positions * 1)
+
+            landing_position = random.choice(weighted_positions)
+
+        row_index, col_index = landing_position
         multiplier_grid[row_index][col_index] += 1
 
         drops.append(

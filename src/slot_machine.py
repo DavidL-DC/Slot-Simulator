@@ -2,6 +2,7 @@ import random
 
 from config import (
     FREE_SPINS_AWARDED,
+    FREE_SPIN_REEL_STRIPS,
     PAYLINES,
     REELS,
     REEL_STRIPS,
@@ -202,12 +203,7 @@ def spin_reels_free_spins() -> list[list[Symbol]]:
     columns: list[list[Symbol]] = []
 
     for reel_index in range(REELS):
-        strip = [
-            symbol
-            for symbol in REEL_STRIPS[reel_index]
-            if symbol.name not in {"coin", "credit", "collector"}
-        ]
-
+        strip = FREE_SPIN_REEL_STRIPS[reel_index]
         stop_index = random.randint(0, len(strip) - 1)
         visible_column = get_visible_symbols(strip, stop_index, ROWS)
         columns.append(visible_column)
