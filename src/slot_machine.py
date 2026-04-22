@@ -104,7 +104,7 @@ def analyze_line_symbols(line_symbols: list[Symbol]) -> dict:
     match_count = 0
 
     for symbol in line_symbols:
-        if symbol.is_scatter or first_symbol.name == "yin_yang":
+        if symbol.is_scatter or symbol.name == "yin_yang":
             break
 
         if symbol.name == target_symbol.name or symbol.is_wild:

@@ -107,6 +107,7 @@ class SlotUI:
         self.pending_credit_values = {}
         self.pending_credit_positions = []
         self.pending_collector_positions = []
+        self.pending_free_spin_bull_count = 0
 
         self.feature_mode = False
         self.feature_result = None
@@ -837,11 +838,13 @@ class SlotUI:
         free_spin_mode = is_free_spin(self.state)
         self.pending_free_spin_mode = free_spin_mode
 
+        self.pending_free_spin_bull_count = 0
+
         if free_spin_mode:
             consume_free_spin(self.state)
             self.status_text = "Freispiel läuft..."
             self.final_grid = spin_reels_free_spins()
-            self.state.collected_bulls += count_bulls(self.final_grid)
+            self.pending_free_spin_bull_count += count_bulls(self.final_grid)
         else:
             apply_bet(self.state)
             self.status_text = "Walzen drehen..."
@@ -1076,6 +1079,9 @@ class SlotUI:
 
     def finish_spin(self) -> None:
         self.is_spinning = False
+
+        if self.pending_free_spin_mode and self.pending_free_spin_bull_count > 0:
+            self.state.collected_bulls += self.pending_free_spin_bull_count
 
         if self.pending_awarded_free_spins > 0:
             add_free_spins(self.state, self.pending_awarded_free_spins)

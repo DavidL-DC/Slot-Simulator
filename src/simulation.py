@@ -8,9 +8,14 @@ from game import (
     consume_free_spin,
     is_free_spin,
 )
-from slot_machine import evaluate_total_win, spin_reels
-
-import random
+from slot_machine import (
+    count_bulls,
+    evaluate_total_win,
+    spin_reels,
+    spin_reels_free_spins,
+)
+from bull_feature import play_bull_feature
+from config import PAYLINES
 
 
 @dataclass
@@ -51,6 +56,10 @@ class SimulationStats:
     base_game_instant_win: int = 0
     free_spin_instant_win: int = 0
 
+    total_bull_feature_win: int = 0
+    bull_feature_triggers: int = 0
+    total_bulls_collected: int = 0
+
     def rtp(self) -> float:
         if self.total_bet == 0:
             return 0.0
@@ -85,6 +94,11 @@ class SimulationStats:
         if self.total_bet == 0:
             return 0.0
         return self.free_spin_win / self.total_bet * 100
+
+    def bull_feature_rtp(self) -> float:
+        if self.total_bet == 0:
+            return 0.0
+        return self.total_bull_feature_win / self.total_bet * 100
 
 
 def record_line_hits(stats: SimulationStats, line_results: list[dict]) -> None:
@@ -123,7 +137,14 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
 
     stats.total_spins += 1
 
-    grid = spin_reels()
+    if free_spin_mode:
+        grid = spin_reels_free_spins()
+        bulls_this_spin = count_bulls(grid)
+        state.collected_bulls += bulls_this_spin
+        stats.total_bulls_collected += bulls_this_spin
+    else:
+        grid = spin_reels()
+
     win_result = evaluate_total_win(grid, state.current_bet)
 
     total_win = win_result["total_win"]
@@ -166,6 +187,24 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
         stats.base_game_yin_yang_win += yin_yang_win
         stats.base_game_instant_win += instant_win
 
+    if free_spin_mode and state.free_spins_remaining == 0 and state.collected_bulls > 0:
+        bull_feature_result = play_bull_feature(
+            collected_bulls=state.collected_bulls,
+            bet=state.current_bet,
+            paylines=PAYLINES,
+        )
+
+        bull_feature_win = bull_feature_result.total_win
+
+        apply_win(state, bull_feature_win)
+
+        stats.total_win += bull_feature_win
+        stats.free_spin_win += bull_feature_win
+        stats.total_bull_feature_win += bull_feature_win
+        stats.bull_feature_triggers += 1
+
+        state.collected_bulls = 0
+
 
 def run_simulation(
     start_balance: int, bet: int, base_game_spins: int
@@ -177,7 +216,8 @@ def run_simulation(
 
     while completed_base_spins < base_game_spins:
         if not is_free_spin(state):
-            print(f"{completed_base_spins}/{base_game_spins}")
+            if completed_base_spins % 10000 == 0:
+                print(f"{completed_base_spins}/{base_game_spins}")
             if state.balance < state.current_bet:
                 break
             completed_base_spins += 1
@@ -225,6 +265,7 @@ def print_simulation_stats(stats: SimulationStats) -> None:
     print(f"Linien RTP: {stats.line_rtp():.2f}%")
     print(f"Scatter RTP: {stats.scatter_rtp():.2f}%")
     print(f"Yin-Yang RTP: {stats.yin_yang_rtp():.2f}%")
+    print(f"Bull Feature RTP: {stats.bull_feature_rtp():.2f}%")
     print()
     print(f"Basis-Spiel RTP: {stats.base_game_rtp():.2f}%")
     print(f"Freispiel RTP: {stats.free_spin_rtp():.2f}%")
@@ -239,11 +280,15 @@ def print_simulation_stats(stats: SimulationStats) -> None:
     print(f"Scatter-Trigger: {stats.scatter_triggers}")
     print(f"Gewonnene Freispiele gesamt: {stats.total_free_spins_awarded}")
     print()
+    print(f"Bull-Feature Trigger: {stats.bull_feature_triggers}")
+    print(f"Gesammelte Bulls gesamt: {stats.total_bulls_collected}")
+    print()
     print("=== DETAIL GEWINNE ===")
     print(f"Liniengewinn gesamt: {stats.total_line_win}")
     print(f"Scattergewinn gesamt: {stats.total_scatter_win}")
     print(f"Yin-Yang-Gewinn gesamt: {stats.total_yin_yang_win}")
     print(f"Instant-Win gesamt: {stats.total_instant_win}")
+    print(f"Bull-Feature Gewinn gesamt: {stats.total_bull_feature_win}")
     print()
     print(f"Basis-Spiel Liniengewinn: {stats.base_game_line_win}")
     print(f"Freispiel Liniengewinn: {stats.free_spin_line_win}")
