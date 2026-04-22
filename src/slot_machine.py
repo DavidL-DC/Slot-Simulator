@@ -8,6 +8,7 @@ from config import (
     REEL_STRIPS,
     ROWS,
     SCATTER_PAYOUTS,
+    FREE_SPIN_PAYOUTS,
 )
 
 from symbols import Symbol
@@ -25,6 +26,10 @@ def get_visible_symbols(
         visible_symbols.append(strip[symbol_index])
 
     return visible_symbols
+
+
+def get_line_bet(total_bet: int | float) -> float:
+    return total_bet / len(PAYLINES)
 
 
 def spin_reels() -> list[list[Symbol]]:
@@ -126,33 +131,46 @@ def analyze_line_symbols(line_symbols: list[Symbol]) -> dict:
     }
 
 
-def evaluate_line_symbols(line_symbols: list[Symbol], bet: int) -> int:
+def evaluate_line_symbols(
+    line_symbols: list[Symbol], bet: int | float, free_spin_mode: bool = False
+) -> float:
     analysis = analyze_line_symbols(line_symbols)
 
     target_symbol = analysis["target_symbol"]
     match_count = analysis["match_count"]
 
     if target_symbol is None or match_count < 3:
-        return 0
+        return 0.0
 
-    multiplier = target_symbol.payouts.get(match_count, 0)
-    return bet * multiplier
+    if free_spin_mode:
+        payouts = FREE_SPIN_PAYOUTS.get(target_symbol.name)
+    else:
+        payouts = target_symbol.payouts
+
+    if payouts is None:
+        return 0.0
+
+    line_bet = get_line_bet(bet)
+    multiplier = payouts.get(match_count, 0)
+    return line_bet * multiplier
 
 
-def evaluate_middle_row(grid: list[list[Symbol]], bet: int) -> int:
+def evaluate_middle_row(grid: list[list[Symbol]], bet: int | float) -> float:
     middle_payline = [1, 1, 1, 1, 1]
     line_symbols = get_line_symbols(grid, middle_payline)
     return evaluate_line_symbols(line_symbols, bet)
 
 
-def evaluate_all_paylines(grid: list[list[Symbol]], bet: int) -> tuple[int, list[dict]]:
-    total_win = 0
+def evaluate_all_paylines(
+    grid: list[list[Symbol]], bet: int | float, free_spin_mode: bool = False
+) -> tuple[float, list[dict]]:
+    total_win = 0.0
     line_results: list[dict] = []
 
     for line_index, payline in enumerate(PAYLINES, start=1):
         line_symbols = get_line_symbols(grid, payline)
         analysis = analyze_line_symbols(line_symbols)
-        win = evaluate_line_symbols(line_symbols, bet)
+        win = evaluate_line_symbols(line_symbols, bet, free_spin_mode)
 
         line_results.append(
             {
@@ -287,17 +305,28 @@ def get_collector_positions(grid: list[list[Symbol]]) -> list[tuple[int, int]]:
     return positions
 
 
-def evaluate_total_win(grid: list[list[Symbol]], bet: int) -> dict:
-    line_win, line_results = evaluate_all_paylines(grid, bet)
-    scatter_count, scatter_win = evaluate_scatters(grid, bet)
-    awarded_free_spins = get_awarded_free_spins(scatter_count)
+def evaluate_total_win(
+    grid: list[list[Symbol]], bet: int, free_spin_mode: bool = False
+) -> dict:
+    line_win, line_results = evaluate_all_paylines(grid, bet, free_spin_mode)
+
+    if free_spin_mode:
+        scatter_count = 0
+        scatter_win = 0
+        awarded_free_spins = 0
+        instant_win = 0
+        credit_values = {}
+        credit_positions = []
+        collector_positions = []
+    else:
+        scatter_count, scatter_win = evaluate_scatters(grid, bet)
+        awarded_free_spins = get_awarded_free_spins(scatter_count)
+        instant_win, credit_values, credit_positions, collector_positions = (
+            evaluate_instant_win_feature(grid, bet)
+        )
 
     yin_yang_count, yin_yang_win, yin_yang_feature_result = evaluate_yin_yang_feature(
         grid, bet
-    )
-
-    instant_win, credit_values, credit_positions, collector_positions = (
-        evaluate_instant_win_feature(grid, bet)
     )
 
     total_win = line_win + scatter_win + yin_yang_win + instant_win

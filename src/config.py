@@ -49,16 +49,28 @@ PAYLINES = [
     [1, 1, 2, 1, 1],  # 25
 ]
 
+FREE_SPIN_PAYOUTS = {
+    "nine": {3: 5, 4: 8, 5: 25},
+    "ten": {3: 5, 4: 8, 5: 30},
+    "jack": {3: 5, 4: 8, 5: 30},
+    "queen": {3: 5, 4: 8, 5: 30},
+    "king": {3: 5, 4: 10, 5: 50},
+    "gong": {3: 5, 4: 10, 5: 50},
+    "lantern": {3: 5, 4: 10, 5: 50},
+    "vase": {3: 5, 4: 10, 5: 50},
+    "house": {3: 5, 4: 15, 5: 75},
+}
+
 SCATTER_PAYOUTS = {
-    3: 2,
+    3: 1,
     4: 10,
-    5: 50,
+    5: 100,
 }
 
 FREE_SPINS_AWARDED = {
     3: 8,
-    4: 10,
-    5: 12,
+    4: 8,
+    5: 8,
 }
 
 YIN_YANG_FEATURE_PAYOUTS = {
@@ -225,9 +237,9 @@ FREE_SPIN_REEL_STRIPS = [
         VASE,
         TEN,
         JACK,
-        BULL,
-        BULL,
         YIN_YANG,
+        NINE,
+        TEN,
     ],
     [
         TEN,
@@ -303,6 +315,7 @@ FREE_SPIN_REEL_STRIPS = [
         TEN,
         JACK,
         BULL,
+        BULL,
         YIN_YANG,
         TEN,
         JACK,
@@ -330,6 +343,7 @@ FREE_SPIN_REEL_STRIPS = [
         TEN,
         JACK,
         NINE,
+        BULL,
         BULL,
         TEN,
         JACK,

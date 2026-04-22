@@ -118,7 +118,9 @@ def drop_bulls(collected_bulls: int) -> tuple[list[list[int]], list[BullDrop]]:
             landing_position = random.choice(weighted_positions)
 
         row_index, col_index = landing_position
-        multiplier_grid[row_index][col_index] += 1
+        multiplier_grid[row_index][col_index] = min(
+            3, multiplier_grid[row_index][col_index] + 1
+        )
 
         drops.append(
             BullDrop(
@@ -229,12 +231,28 @@ def evaluate_bull_feature_paylines(
     paylines: list[list[int]],
     bet: int,
 ) -> tuple[int, list[BullLineWin]]:
-    total_win = 0
+    total_win = 0.0
     line_wins: list[BullLineWin] = []
+
+    line_bet = round(bet / len(paylines))
 
     for line_index, payline in enumerate(paylines, start=1):
         line_symbols = get_line_symbols(final_symbol_grid, payline)
         line_multipliers = get_line_multipliers(multiplier_grid, payline)
+
+        # SPECIAL: 5 Bulls auf einer Linie zahlen x75
+        if all(symbol.name == "bull" for symbol in line_symbols):
+            final_win = round(line_bet * 75)
+            total_win += final_win
+            line_wins.append(
+                BullLineWin(
+                    line_index=line_index,
+                    win=final_win,
+                    multiplier_used=1,
+                    matched_symbol_name="bull",
+                )
+            )
+            continue
 
         analysis = analyze_line_symbols(line_symbols)
         target_symbol = analysis["target_symbol"]
@@ -244,7 +262,7 @@ def evaluate_bull_feature_paylines(
             continue
 
         base_multiplier = target_symbol.payouts.get(match_count, 0)
-        base_win = bet * base_multiplier
+        base_win = line_bet * base_multiplier
 
         if base_win <= 0:
             continue
@@ -255,7 +273,12 @@ def evaluate_bull_feature_paylines(
             if line_multipliers[index] > 0
         ]
 
-        line_multiplier = max(used_line_multipliers, default=1)
+        line_multiplier = 1
+        for value in used_line_multipliers:
+            line_multiplier *= value
+
+        line_multiplier = min(line_multiplier, 18)
+
         final_win = base_win * line_multiplier
 
         total_win += final_win
@@ -268,7 +291,7 @@ def evaluate_bull_feature_paylines(
             )
         )
 
-    return total_win, line_wins
+    return round(total_win), line_wins
 
 
 def play_bull_feature(

@@ -12,21 +12,21 @@ class Symbol:
     is_collector: bool = False
 
 
-NINE = Symbol("nine", "9", {3: 0, 4: 1, 5: 2})
-TEN = Symbol("ten", "10", {3: 0, 4: 1, 5: 2})
-JACK = Symbol("jack", "J", {3: 0, 4: 2, 5: 4})
-QUEEN = Symbol("queen", "Q", {3: 1, 4: 2, 5: 5})
-KING = Symbol("king", "K", {3: 1, 4: 3, 5: 6})
+NINE = Symbol("nine", "9", {3: 5, 4: 10, 5: 30})
+TEN = Symbol("ten", "10", {3: 5, 4: 10, 5: 30})
+JACK = Symbol("jack", "J", {3: 5, 4: 10, 5: 50})
+QUEEN = Symbol("queen", "Q", {3: 5, 4: 10, 5: 50})
+KING = Symbol("king", "K", {3: 5, 4: 10, 5: 50})
 
-GONG = Symbol(name="gong", display="GONG", payouts={3: 2, 4: 5, 5: 10})
-HOUSE = Symbol(name="house", display="HOME", payouts={3: 3, 4: 7, 5: 13})
-LANTERN = Symbol(name="lantern", display="LANT", payouts={3: 5, 4: 9, 5: 20})
-VASE = Symbol(name="vase", display="VASE", payouts={3: 7, 4: 12, 5: 30})
+GONG = Symbol(name="gong", display="GONG", payouts={3: 5, 4: 15, 5: 75})
+HOUSE = Symbol(name="house", display="HOME", payouts={3: 5, 4: 20, 5: 100})
+LANTERN = Symbol(name="lantern", display="LANT", payouts={3: 5, 4: 15, 5: 75})
+VASE = Symbol(name="vase", display="VASE", payouts={3: 5, 4: 15, 5: 75})
 
 BULL = Symbol(
     name="bull",
     display="BULL",
-    payouts={3: 15, 4: 40, 5: 80},
+    payouts={3: 0, 4: 0, 5: 0},
     is_wild=True,
 )
 
@@ -40,7 +40,7 @@ COIN = Symbol(
 YIN_YANG = Symbol(
     name="yin_yang",
     display="YIN",
-    payouts={3: 0, 4: 0, 5: 0},
+    payouts={},
 )
 
 CREDIT = Symbol(

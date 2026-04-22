@@ -180,6 +180,30 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
     free_spin_mode = is_free_spin(state)
 
     if free_spin_mode:
+        if state.free_spins_remaining == 1:
+            state.free_spins_remaining = 0
+
+            if state.collected_bulls > 0:
+                bull_feature_result = play_bull_feature(
+                    collected_bulls=state.collected_bulls,
+                    bet=state.current_bet,
+                    paylines=PAYLINES,
+                )
+
+                bull_feature_win = bull_feature_result.total_win
+
+                apply_win(state, bull_feature_win)
+
+                stats.total_win += bull_feature_win
+                stats.free_spin_win += bull_feature_win
+                stats.total_bull_feature_win += bull_feature_win
+                stats.bull_feature_triggers += 1
+                stats.total_bull_feature_trigger_bulls += state.collected_bulls
+
+                state.collected_bulls = 0
+
+            return
+
         consume_free_spin(state)
         stats.free_spins_played += 1
     else:
@@ -197,7 +221,7 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
     else:
         grid = spin_reels()
 
-    win_result = evaluate_total_win(grid, state.current_bet)
+    win_result = evaluate_total_win(grid, state.current_bet, free_spin_mode)
 
     total_win = win_result["total_win"]
     line_win = win_result["line_win"]
@@ -274,27 +298,6 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
         stats.base_game_scatter_win += scatter_win
         stats.base_game_yin_yang_win += yin_yang_win
         stats.base_game_instant_win += instant_win
-
-    if free_spin_mode and state.free_spins_remaining == 0 and state.collected_bulls > 0:
-        collected_bulls_for_feature = state.collected_bulls
-
-        bull_feature_result = play_bull_feature(
-            collected_bulls=collected_bulls_for_feature,
-            bet=state.current_bet,
-            paylines=PAYLINES,
-        )
-
-        bull_feature_win = bull_feature_result.total_win
-
-        apply_win(state, bull_feature_win)
-
-        stats.total_win += bull_feature_win
-        stats.free_spin_win += bull_feature_win
-        stats.total_bull_feature_win += bull_feature_win
-        stats.bull_feature_triggers += 1
-        stats.total_bull_feature_trigger_bulls += collected_bulls_for_feature
-
-        state.collected_bulls = 0
 
 
 def run_simulation(

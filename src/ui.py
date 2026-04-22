@@ -850,7 +850,9 @@ class SlotUI:
             self.status_text = "Walzen drehen..."
             self.final_grid = spin_reels()
 
-        win_result = evaluate_total_win(self.final_grid, self.state.current_bet)
+        win_result = evaluate_total_win(
+            self.final_grid, self.state.current_bet, free_spin_mode
+        )
 
         total_win = win_result["total_win"]
         line_win = win_result["line_win"]
@@ -1140,13 +1142,14 @@ class SlotUI:
             self.status_text = f"Spin beendet. Gewinn: {self.pending_total_win}"
 
         # Freispiele beendet → Bull Feature starten
-        if (
-            self.pending_free_spin_mode
-            and self.state.free_spins_remaining == 0
-            and self.state.collected_bulls > 0
-        ):
-            self.status_text = f"Freispiele beendet - Bull Feature startet"
-            self.start_bull_feature()
+        if self.pending_free_spin_mode and self.state.free_spins_remaining == 1:
+            self.state.free_spins_remaining = 0
+
+            if self.state.collected_bulls > 0:
+                self.status_text = "Freispiele beendet - Bull Feature startet"
+                self.start_bull_feature()
+            else:
+                self.status_text = "Freispiele beendet"
 
     def draw(self) -> None:
         self.screen.fill(BACKGROUND_COLOR)
