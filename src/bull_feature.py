@@ -187,7 +187,11 @@ def analyze_line_symbols(line_symbols: list[Symbol]) -> dict:
     if first_symbol.is_wild:
         target_symbol = None
         for symbol in line_symbols[1:]:
-            if not symbol.is_wild and not symbol.is_scatter:
+            if (
+                not symbol.is_wild
+                and not symbol.is_scatter
+                and symbol.name != "yin_yang"
+            ):
                 target_symbol = symbol
                 break
 
@@ -234,7 +238,7 @@ def evaluate_bull_feature_paylines(
     total_win = 0.0
     line_wins: list[BullLineWin] = []
 
-    line_bet = round(bet / len(paylines))
+    line_bet = bet / len(paylines)
 
     for line_index, payline in enumerate(paylines, start=1):
         line_symbols = get_line_symbols(final_symbol_grid, payline)

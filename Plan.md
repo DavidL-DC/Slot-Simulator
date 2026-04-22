@@ -18,6 +18,8 @@ Freispiele:
 
 ~~- Bull Multiplier in einer Linie werden multipliziert -> Max x18 pro Linie~~
 
+\- Zahlt nicht, wenn bull am anfang
+
 
 
 Basegame:
@@ -40,7 +42,7 @@ Basegame:
 
 \- Wahrscheinlichkeit Progressives zu gewinnen ist proportional zum Gesamteinsatz
 
-\- 50 Win Lines nachbauen
+~~- 50 Win Lines nachbauen~~
 
 \- Abrunden auf 2 Nachkommastellen
 
