@@ -848,7 +848,7 @@ class SlotUI:
         else:
             apply_bet(self.state)
             self.status_text = "Walzen drehen..."
-            self.final_grid = spin_reels(self.state.current_bet)
+            self.final_grid = spin_reels(self.state.credits_bet)
 
         win_result = evaluate_total_win(
             self.final_grid, self.state.current_bet, free_spin_mode
@@ -1039,7 +1039,9 @@ class SlotUI:
         debug_grid[2][4] = COLLECTOR
 
         self.final_grid = debug_grid
-        win_result = evaluate_total_win(self.final_grid, self.state.current_bet)
+        win_result = evaluate_total_win(
+            self.final_grid, self.state.current_bet, self.state.credits_bet
+        )
 
         total_win = win_result["total_win"]
         line_win = win_result["line_win"]
@@ -1267,10 +1269,12 @@ class SlotUI:
 
                     if self.is_spinning:
                         if grid_position in self.pending_credit_values:
-                            value_text = str(self.pending_credit_values[grid_position])
+                            value_obj = self.pending_credit_values[grid_position]
+                            value_text = value_obj.label
                     else:
                         if grid_position in self.last_credit_values:
-                            value_text = str(self.last_credit_values[grid_position])
+                            value_obj = self.last_credit_values[grid_position]
+                            value_text = value_obj.label
 
                     symbol_surface = self.small_font.render(
                         symbol.display, True, (30, 30, 40)

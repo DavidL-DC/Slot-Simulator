@@ -143,11 +143,11 @@ def play_single_round(state: GameState) -> None:
 
     print()
 
-    grid = spin_reels(state.current_bet)
+    grid = spin_reels(state.credits_bet)
     print_grid(grid)
     print()
 
-    win_result = evaluate_total_win(grid, state.current_bet)
+    win_result = evaluate_total_win(grid, state.current_bet, state.credits_bet)
 
     print_line_results(win_result["line_results"])
     print()

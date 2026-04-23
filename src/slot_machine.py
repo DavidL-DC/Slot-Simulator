@@ -7,12 +7,12 @@ from config import (
     FREE_SPIN_REEL_STRIPS,
     PAYLINES,
     REELS,
-    REEL_STRIPS,
     ROWS,
     SCATTER_PAYOUTS,
     FREE_SPIN_PAYOUTS,
     INSTANT_WIN_CREDIT_MULTIPLIERS,
     JACKPOT_VALUES,
+    BASE_REEL_SETS_BY_CREDITS,
 )
 
 from symbols import Symbol
@@ -39,25 +39,20 @@ def get_visible_symbols(
     return visible_symbols
 
 
-def get_reel_set_key_for_bet(total_bet: float) -> str:
-    if total_bet < 1:
-        return "low"
-    if total_bet < 5:
-        return "mid"
-    return "high"
+def get_base_reel_set_for_credits(credits_bet: int) -> list[list[Symbol]]:
+    return BASE_REEL_SETS_BY_CREDITS.get(credits_bet, BASE_REEL_SETS_BY_CREDITS[50])
 
 
 def get_line_bet(total_bet: int | float) -> float:
     return total_bet / len(PAYLINES)
 
 
-def spin_reels(total_bet: float = 1.0) -> list[list[Symbol]]:
-    reel_set_key = get_reel_set_key_for_bet(total_bet)
-
+def spin_reels(credits_bet: int = 100) -> list[list[Symbol]]:
+    reel_strips = get_base_reel_set_for_credits(credits_bet)
     columns: list[list[Symbol]] = []
 
     for reel_index in range(REELS):
-        strip = REEL_STRIPS[reel_index]
+        strip = reel_strips[reel_index]
 
         if reel_index == 4:
             filtered_strip = [
@@ -325,7 +320,21 @@ def get_collector_positions(grid: list[list[Symbol]]) -> list[tuple[int, int]]:
     return positions
 
 
-def build_instant_win_value_pool(total_bet: float) -> list[InstantWinValue]:
+def get_progressive_factor_for_credits(credits_bet: int) -> int:
+    if credits_bet == 50:
+        return 1
+    if credits_bet == 100:
+        return 2
+    if credits_bet == 150:
+        return 3
+    if credits_bet == 250:
+        return 4
+    return 5
+
+
+def build_instant_win_value_pool(
+    total_bet: float, credits_bet: int
+) -> list[InstantWinValue]:
     pool: list[InstantWinValue] = []
 
     for multiplier in INSTANT_WIN_CREDIT_MULTIPLIERS:
@@ -337,40 +346,54 @@ def build_instant_win_value_pool(total_bet: float) -> list[InstantWinValue]:
             )
         )
 
-    pool.append(
-        InstantWinValue(
-            kind="mini",
-            value=round(JACKPOT_VALUES["mini"], 2),
-            label="MINI",
-        )
+    progressive_factor = get_progressive_factor_for_credits(credits_bet)
+
+    pool.extend(
+        [
+            InstantWinValue(
+                kind="mini",
+                value=round(JACKPOT_VALUES["mini"], 2),
+                label="MINI",
+            )
+        ]
+        * 2
     )
-    pool.append(
-        InstantWinValue(
-            kind="minor",
-            value=round(JACKPOT_VALUES["minor"], 2),
-            label="MINOR",
-        )
+    pool.extend(
+        [
+            InstantWinValue(
+                kind="minor",
+                value=round(JACKPOT_VALUES["minor"], 2),
+                label="MINOR",
+            )
+        ]
+        * 2
     )
-    pool.append(
-        InstantWinValue(
-            kind="maxi",
-            value=round(JACKPOT_VALUES["maxi"], 2),
-            label="MAXI",
-        )
+    pool.extend(
+        [
+            InstantWinValue(
+                kind="maxi",
+                value=round(JACKPOT_VALUES["maxi"], 2),
+                label="MAXI",
+            )
+        ]
+        * progressive_factor
     )
-    pool.append(
-        InstantWinValue(
-            kind="major",
-            value=round(JACKPOT_VALUES["major"], 2),
-            label="MAJOR",
-        )
+    pool.extend(
+        [
+            InstantWinValue(
+                kind="major",
+                value=round(JACKPOT_VALUES["major"], 2),
+                label="MAJOR",
+            )
+        ]
+        * progressive_factor
     )
 
     return pool
 
 
 def evaluate_total_win(
-    grid: list[list[Symbol]], bet: float, free_spin_mode: bool = False
+    grid: list[list[Symbol]], bet: float, credits_bet: int, free_spin_mode: bool = False
 ) -> dict:
     line_win, line_results = evaluate_all_paylines(grid, bet, free_spin_mode)
 
@@ -386,7 +409,7 @@ def evaluate_total_win(
         scatter_count, scatter_win = evaluate_scatters(grid, bet)
         awarded_free_spins = get_awarded_free_spins(scatter_count)
         instant_win, credit_values, credit_positions, collector_positions = (
-            evaluate_instant_win_feature(grid, bet)
+            evaluate_instant_win_feature(grid, bet, credits_bet)
         )
 
     yin_yang_count, yin_yang_win, yin_yang_feature_result = evaluate_yin_yang_feature(
@@ -413,8 +436,7 @@ def evaluate_total_win(
 
 
 def evaluate_instant_win_feature(
-    grid: list[list[Symbol]],
-    bet: float,
+    grid: list[list[Symbol]], bet: float, credits_bet: int
 ) -> tuple[
     float,
     dict[tuple[int, int], InstantWinValue],
@@ -426,7 +448,7 @@ def evaluate_instant_win_feature(
 
     credit_values: dict[tuple[int, int], InstantWinValue] = {}
 
-    pool = build_instant_win_value_pool(bet)
+    pool = build_instant_win_value_pool(bet, credits_bet)
 
     high_value_used = False
 

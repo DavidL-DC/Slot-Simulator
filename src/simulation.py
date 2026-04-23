@@ -219,7 +219,7 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
         state.collected_bulls += bulls_this_spin
         stats.total_bulls_collected += bulls_this_spin
     else:
-        grid = spin_reels(state.current_bet)
+        grid = spin_reels(state.credits_bet)
 
     win_result = evaluate_total_win(grid, state.current_bet, free_spin_mode)
 

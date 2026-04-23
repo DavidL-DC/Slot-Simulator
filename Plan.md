@@ -26,7 +26,7 @@ Basegame:
 
 ~~- Bulls nur auf Reel 2-5~~
 
-\- Instant Wins = Gesamteinsatz x (2, 3, 4, 5, 8, 10, 20, 50, 100, 200) oder Mini, Minor, Maxi oder Major -> 100, 200, Maxi oder Major nur einer pro Spin möglich
+~~- Instant Wins = Gesamteinsatz x (2, 3, 4, 5, 8, 10, 10, 50, 100, 200) oder Mini, Minor, Maxi oder Major -> 100, 200, Maxi oder Major nur einer pro Spin möglich~~
 
 ~~- Line Wins pro Line Bet auswerten~~
 
@@ -36,13 +36,11 @@ Basegame:
 
 ~~- Mindesteinsatz: 50ct~~
 
-\- Verschiedene Reels je nach Anzahl gewetteter Credits
+~~- Verschiedene Reels je nach Anzahl gewetteter Credits~~
 
-\- Wahrscheinlichkeit Progressives zu gewinnen ist proportional zum Gesamteinsatz
+~~- Wahrscheinlichkeit Progressives zu gewinnen ist proportional zum Gesamteinsatz~~
 
 ~~- 50 Win Lines nachbauen~~
-
-~~- Abrunden auf 2 Nachkommastellen~~
 
 
 
