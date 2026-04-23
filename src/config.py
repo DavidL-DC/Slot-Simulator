@@ -88,6 +88,30 @@ JACKPOT_VALUES = {
     "minor": 50,
     "maxi": 500,  # Progressive
     "major": 1000,  # Progressive
+    "grand": 10000,  # Progressive
+}
+
+YIN_YANG_VALUE_MULTIPLIERS = [1, 2, 3, 5, 10, 15, 20, 25, 50]
+
+YIN_YANG_PRIZE_TABLES = {
+    "table_1": {
+        "pool_1": [2, 5, 7, 10, 12, 18, 20, 22, 25],
+        "pool_2": [3, 6, 8, 12, 18, 22, 25, 30, 50, 100],
+        "pool_3": [1, 3, 5, 8, 10, 15, 22, 25, 30, 50],
+        "pool_4": [5, 8, 10, 15, 20, 25, 30, 50, 75, 125],
+        "pool_5a": [2, 3, 5, 7, "Grand"],
+        "pool_5b": [3, 7, 10, 12, 15, "Grand"],
+        "pool_5c": [5, 10, 15, 25, 50, 100, "Grand"],
+    },
+    "table_2": {
+        "pool_1": [5, 10, 15, 20, 25],
+        "pool_2": [6, 12, 18, 30, 50, 80, 100],
+        "pool_3": [3, 8, 10, 15, 30, 50],
+        "pool_4": [8, 15, 20, 40, 80, 125, 150],
+        "pool_5a": [5, 10, 15, 25, "Grand"],
+        "pool_5b": [5, 10, 15, 25, 50, "Grand"],
+        "pool_5c": [5, 10, 15, 25, 50, 100, "Grand"],
+    },
 }
 
 FREE_SPIN_PAYOUTS = {
