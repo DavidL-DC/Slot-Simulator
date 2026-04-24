@@ -179,7 +179,7 @@ def get_grand_column_index(column_pool_keys: list[str]) -> int | None:
 def play_yin_yang_feature(
     bet: float,
     trigger_positions: list[tuple[int, int]],
-    hit_chance: float = 0.05,
+    hit_chance: float = 0.06,
 ) -> YinYangFeatureResult:
     grid = create_empty_grid()
 

@@ -10,8 +10,6 @@ from config import (
     ROWS,
     SCATTER_PAYOUTS,
     FREE_SPIN_PAYOUTS,
-    INSTANT_WIN_CREDIT_MULTIPLIERS,
-    JACKPOT_VALUES,
     BASE_REEL_SETS_BY_CREDITS,
 )
 
@@ -350,10 +348,10 @@ def get_random_instant_win_value(total_bet: float, credits_bet: int) -> InstantW
         300,  # x2
         260,  # x3
         220,  # x4
-        180,  # x5
-        100,  # x8
-        80,  # x10
-        35,  # x20
+        200,  # x5
+        200,  # x8
+        150,  # x10
+        60,  # x20
         10,  # x50
         2,  # x100
         1,  # x200

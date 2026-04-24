@@ -137,6 +137,7 @@ FREE_SPINS_AWARDED = {
     4: 8,
     5: 8,
 }
+
 BASE_REEL_STRIPS_50 = [
     [
         NINE,
@@ -172,7 +173,6 @@ BASE_REEL_STRIPS_50 = [
         TEN,
         NINE,
         COIN,
-        YIN_YANG,
     ],
     [
         TEN,
@@ -184,6 +184,7 @@ BASE_REEL_STRIPS_50 = [
         NINE,
         JACK,
         GONG,
+        CREDIT,
         TEN,
         NINE,
         HOUSE,
@@ -211,37 +212,38 @@ BASE_REEL_STRIPS_50 = [
     ],
     [
         JACK,
-        NINE,
+        HOUSE,
         TEN,
         QUEEN,
         KING,
         NINE,
         JACK,
-        TEN,
         GONG,
-        NINE,
+        GONG,
+        VASE,
         HOUSE,
         TEN,
         QUEEN,
+        CREDIT,
         JACK,
         BULL,
-        NINE,
+        LANTERN,
         COIN,
         CREDIT,
-        TEN,
+        KING,
         LANTERN,
         NINE,
         VASE,
         JACK,
-        TEN,
+        HOUSE,
         BULL,
         NINE,
         KING,
         TEN,
         QUEEN,
         JACK,
-        NINE,
-        TEN,
+        VASE,
+        GONG,
         YIN_YANG,
     ],
     [
@@ -303,7 +305,6 @@ BASE_REEL_STRIPS_50 = [
         COIN,
         JACK,
         NINE,
-        YIN_YANG,
         KING,
         TEN,
         BULL,
@@ -325,7 +326,7 @@ BASE_REEL_STRIPS_100 = [
 
 BASE_REEL_STRIPS_150 = [
     BASE_REEL_STRIPS_50[0],
-    BASE_REEL_STRIPS_50[1] + [CREDIT],
+    BASE_REEL_STRIPS_50[1],
     BASE_REEL_STRIPS_50[2],
     BASE_REEL_STRIPS_50[3],
     BASE_REEL_STRIPS_50[4],
@@ -333,18 +334,18 @@ BASE_REEL_STRIPS_150 = [
 
 BASE_REEL_STRIPS_250 = [
     BASE_REEL_STRIPS_50[0],
-    BASE_REEL_STRIPS_50[1] + [CREDIT],
+    BASE_REEL_STRIPS_50[1],
     BASE_REEL_STRIPS_50[2],
     BASE_REEL_STRIPS_50[3],
-    BASE_REEL_STRIPS_50[4] + [COLLECTOR],
+    BASE_REEL_STRIPS_50[4],
 ]
 
 BASE_REEL_STRIPS_500 = [
     BASE_REEL_STRIPS_50[0],
-    BASE_REEL_STRIPS_50[1] + [CREDIT],
-    BASE_REEL_STRIPS_50[2] + [YIN_YANG],
+    BASE_REEL_STRIPS_50[1],
+    BASE_REEL_STRIPS_50[2],
     BASE_REEL_STRIPS_50[3],
-    BASE_REEL_STRIPS_50[4] + [COLLECTOR],
+    BASE_REEL_STRIPS_50[4],
 ]
 
 BASE_REEL_SETS_BY_CREDITS = {
@@ -382,6 +383,7 @@ FREE_SPIN_REEL_STRIPS = [
         TEN,
         JACK,
         NINE,
+        BULL,
         QUEEN,
         KING,
         TEN,
@@ -425,6 +427,7 @@ FREE_SPIN_REEL_STRIPS = [
         TEN,
         JACK,
         NINE,
+        BULL,
         KING,
         QUEEN,
         TEN,
