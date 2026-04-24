@@ -66,7 +66,7 @@ class SlotUI:
 
         self.state = state
 
-        self.current_grid = self.create_random_grid()
+        self.current_grid = spin_reels(self.state.credits_bet)
         self.final_grid = self.current_grid
 
         self.last_total_win = 0
@@ -425,13 +425,12 @@ class SlotUI:
             self.last_total_win += self.bull_feature_result.total_win
             self.bull_feature_win_applied = True
 
-    def get_feature_spin_symbol(self) -> Symbol:
+    def get_feature_spin_symbol(self, bull_feature: bool = False) -> Symbol:
         weighted_symbols = [
             symbol
             for symbol in ALL_SYMBOLS
             if symbol.name
             in {
-                "yin_yang",
                 "nine",
                 "ten",
                 "jack",
@@ -444,10 +443,18 @@ class SlotUI:
             }
         ]
 
-        extra_yin = [symbol for symbol in ALL_SYMBOLS if symbol.name == "yin_yang"] * 4
-        pool = weighted_symbols + extra_yin
-
-        return random.choice(pool)
+        if not bull_feature:
+            yin_symbol = [
+                next(symbol for symbol in ALL_SYMBOLS if symbol.name == "yin_yang")
+            ]
+            weighted_symbols.extend(yin_symbol * 5)
+            extra_yin = [
+                symbol for symbol in ALL_SYMBOLS if symbol.name == "yin_yang"
+            ] * 4
+            pool = weighted_symbols + extra_yin
+            return random.choice(pool)
+        else:
+            return random.choice(weighted_symbols)
 
     def create_feature_background_grid(self) -> list[list[Symbol]]:
         weighted_symbols = [
@@ -498,12 +505,6 @@ class SlotUI:
 
         if all(self.locked_reels):
             self.finish_spin()
-
-    def create_random_grid(self) -> list[list[Symbol]]:
-        return [
-            [random.choice(ALL_SYMBOLS) for _ in range(GRID_COLS)]
-            for _ in range(GRID_ROWS)
-        ]
 
     def show_overlay(
         self,
@@ -714,9 +715,9 @@ class SlotUI:
             for col_index in range(5):
                 if self.bull_feature_display_multiplier_grid[row_index][col_index] == 0:
                     spinning_cells.append((row_index, col_index))
-                    self.bull_feature_background_grid[row_index][
-                        col_index
-                    ] = self.get_feature_spin_symbol()
+                    self.bull_feature_background_grid[row_index][col_index] = (
+                        self.get_feature_spin_symbol(True)
+                    )
 
         self.bull_feature_spinning_cells = spinning_cells
 
@@ -877,7 +878,7 @@ class SlotUI:
         self.pending_credit_positions = credit_positions
         self.pending_collector_positions = collector_positions
 
-        self.current_grid = self.create_random_grid()
+        self.current_grid = spin_reels(self.state.credits_bet)
 
         self.is_spinning = True
         self.locked_reels = [False, False, False, False, False]
@@ -1067,7 +1068,7 @@ class SlotUI:
         self.pending_credit_positions = credit_positions
         self.pending_collector_positions = collector_positions
 
-        self.current_grid = self.create_random_grid()
+        self.current_grid = spin_reels(self.state.credits_bet)
 
         self.is_spinning = True
         self.locked_reels = [False, False, False, False, False]
@@ -1486,7 +1487,7 @@ class SlotUI:
             y = feature_grid_y - 50
 
             is_completed = col_index in self.feature_current_completed_columns
-            is_grand = self.feature_current_grand_column_index == col_index
+            is_grand = str(value) == "GRAND"
 
             if is_grand:
                 if is_completed:
@@ -1629,15 +1630,20 @@ class SlotUI:
                     )
 
         if self.feature_result is not None:
-            if self.feature_phase in {"countup", "done"}:
+            if self.feature_phase == "done":
+                symbol_display = self.feature_result.symbol_total
+                column_display = self.feature_result.column_bonus_total
+                total_display = self.feature_countup_target
+            elif self.feature_phase == "countup":
+                symbol_display = 0
+                column_display = 0
                 total_display = self.feature_countup_value
             else:
+                symbol_display = 0
+                column_display = 0
                 total_display = 0
 
-            line_1 = (
-                f"Symbols: {self.feature_result.symbol_total}    "
-                f"Columns: {self.feature_result.column_bonus_total}"
-            )
+            line_1 = f"Symbols: {symbol_display}    " f"Columns: {column_display}"
             line_2 = f"Total Win: {total_display}"
 
             summary_1_surface = self.label_font.render(line_1, True, (240, 230, 255))

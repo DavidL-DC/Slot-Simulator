@@ -41,7 +41,7 @@ def get_bull_feature_symbol_pool() -> list[Symbol]:
     return [
         symbol
         for symbol in ALL_SYMBOLS
-        if symbol.name not in {"coin", "credit", "collector", "bull"}
+        if symbol.name not in {"coin", "credit", "collector", "bull", "yin_yang"}
     ]
 
 
