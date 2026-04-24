@@ -320,76 +320,50 @@ def get_collector_positions(grid: list[list[Symbol]]) -> list[tuple[int, int]]:
     return positions
 
 
-def get_progressive_factor_for_credits(credits_bet: int) -> int:
-    if credits_bet == 50:
-        return 1
-    if credits_bet == 100:
-        return 2
-    if credits_bet == 150:
-        return 3
-    if credits_bet == 250:
-        return 4
-    return 5
+def get_random_instant_win_value(total_bet: float, credits_bet: int) -> InstantWinValue:
+    candidates = [
+        InstantWinValue("credit", round(total_bet * 2, 2), "2"),
+        InstantWinValue("credit", round(total_bet * 3, 2), "3"),
+        InstantWinValue("credit", round(total_bet * 4, 2), "4"),
+        InstantWinValue("credit", round(total_bet * 5, 2), "5"),
+        InstantWinValue("credit", round(total_bet * 8, 2), "8"),
+        InstantWinValue("credit", round(total_bet * 10, 2), "10"),
+        InstantWinValue("credit", round(total_bet * 20, 2), "20"),
+        InstantWinValue("credit", round(total_bet * 50, 2), "50"),
+        InstantWinValue("credit", round(total_bet * 100, 2), "100"),
+        InstantWinValue("credit", round(total_bet * 200, 2), "200"),
+        InstantWinValue("mini", 10.00, "MINI"),
+        InstantWinValue("minor", 50.00, "MINOR"),
+        InstantWinValue("maxi", 500.00, "MAXI"),
+        InstantWinValue("major", 1000.00, "MAJOR"),
+    ]
 
+    progressive_factor = {
+        50: 1,
+        100: 2,
+        150: 3,
+        250: 5,
+        500: 10,
+    }.get(credits_bet, 1)
 
-def build_instant_win_value_pool(
-    total_bet: float, credits_bet: int
-) -> list[InstantWinValue]:
-    pool: list[InstantWinValue] = []
+    weights = [
+        300,  # x2
+        260,  # x3
+        220,  # x4
+        180,  # x5
+        100,  # x8
+        80,  # x10
+        35,  # x20
+        10,  # x50
+        2,  # x100
+        1,  # x200
+        8,  # MINI
+        3,  # MINOR
+        0.25 * progressive_factor,  # MAXI
+        0.08 * progressive_factor,  # MAJOR
+    ]
 
-    for multiplier in INSTANT_WIN_CREDIT_MULTIPLIERS:
-        pool.append(
-            InstantWinValue(
-                kind="credit",
-                value=round(total_bet * multiplier, 2),
-                label=str(multiplier),
-            )
-        )
-
-    progressive_factor = get_progressive_factor_for_credits(credits_bet)
-
-    pool.extend(
-        [
-            InstantWinValue(
-                kind="mini",
-                value=round(JACKPOT_VALUES["mini"], 2),
-                label="MINI",
-            )
-        ]
-        * 2
-    )
-    pool.extend(
-        [
-            InstantWinValue(
-                kind="minor",
-                value=round(JACKPOT_VALUES["minor"], 2),
-                label="MINOR",
-            )
-        ]
-        * 2
-    )
-    pool.extend(
-        [
-            InstantWinValue(
-                kind="maxi",
-                value=round(JACKPOT_VALUES["maxi"], 2),
-                label="MAXI",
-            )
-        ]
-        * progressive_factor
-    )
-    pool.extend(
-        [
-            InstantWinValue(
-                kind="major",
-                value=round(JACKPOT_VALUES["major"], 2),
-                label="MAJOR",
-            )
-        ]
-        * progressive_factor
-    )
-
-    return pool
+    return random.choices(candidates, weights=weights, k=1)[0]
 
 
 def evaluate_total_win(
@@ -448,13 +422,11 @@ def evaluate_instant_win_feature(
 
     credit_values: dict[tuple[int, int], InstantWinValue] = {}
 
-    pool = build_instant_win_value_pool(bet, credits_bet)
-
     high_value_used = False
 
     for position in credit_positions:
         while True:
-            candidate = random.choice(pool)
+            candidate = get_random_instant_win_value(bet, credits_bet)
 
             if (
                 candidate.kind == "credit" and candidate.label in {"100", "200"}

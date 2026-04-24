@@ -288,9 +288,11 @@ def try_run_simulation(state: GameState, user_input: str) -> bool:
         start_balance=start_balance,
         bet=state.current_bet,
         base_game_spins=spin_count,
+        credits_bet=state.credits_bet,
+        denom=state.denom,
     )
 
-    print_balancing_summary(stats)
+    print_balancing_summary(stats, state.credits_bet)
     print()
 
     return True
@@ -364,7 +366,10 @@ def main() -> None:
     state = GameState(balance=START_BALANCE, current_bet=DEFAULT_BET)
     run_game_loop(state)"""
 
-    state = GameState(balance=START_BALANCE, current_bet=DEFAULT_BET)
+    state = GameState(balance=START_BALANCE, current_bet=DEFAULT_BET, credits_bet=50)
+    try_run_simulation(state, "sim 1000000")
+
+    state = GameState(balance=START_BALANCE, current_bet=DEFAULT_BET, credits_bet=500)
     try_run_simulation(state, "sim 1000000")
 
 

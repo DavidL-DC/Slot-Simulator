@@ -15,7 +15,7 @@ from slot_machine import (
     spin_reels_free_spins,
 )
 from bull_feature import play_bull_feature
-from config import PAYLINES
+from config import PAYLINES, JACKPOT_VALUES
 
 
 @dataclass
@@ -76,6 +76,14 @@ class SimulationStats:
     grand_activations: int = 0
     grand_wins: int = 0
     total_grand_win: int = 0
+
+    base_game_win_with_features: float = 0
+
+    instant_value_counts: dict[str, int] = field(default_factory=dict)
+    max_instant_win: float = 0
+
+    grand_columns_assigned: int = 0
+    grand_reached: int = 0
 
     def rtp(self) -> float:
         if self.total_bet == 0:
@@ -151,6 +159,49 @@ class SimulationStats:
         if self.total_bet == 0:
             return 0.0
         return self.total_grand_win / self.total_bet * 100
+
+    def instant_rtp(self) -> float:
+        if self.total_bet == 0:
+            return 0.0
+        return self.total_instant_win / self.total_bet * 100
+
+    def base_line_rtp(self) -> float:
+        if self.total_bet == 0:
+            return 0.0
+        return self.base_game_line_win / self.total_bet * 100
+
+    def base_scatter_rtp(self) -> float:
+        if self.total_bet == 0:
+            return 0.0
+        return self.base_game_scatter_win / self.total_bet * 100
+
+    def base_instant_rtp(self) -> float:
+        if self.total_bet == 0:
+            return 0.0
+        return self.base_game_instant_win / self.total_bet * 100
+
+    def base_yin_yang_rtp(self) -> float:
+        if self.total_bet == 0:
+            return 0.0
+        return self.base_game_yin_yang_win / self.total_bet * 100
+
+    def base_game_with_features_rtp(self) -> float:
+        if self.total_bet == 0:
+            return 0.0
+        return self.base_game_win_with_features / self.total_bet * 100
+
+    def avg_instant_win(self) -> float:
+        triggers = (
+            self.base_game_instant_win_triggers + self.free_spin_instant_win_triggers
+        )
+        if triggers == 0:
+            return 0.0
+        return self.total_instant_win / triggers
+
+    def grand_reach_rate_per_yin_yang(self) -> float:
+        if self.total_yin_yang_triggers == 0:
+            return 0.0
+        return self.grand_reached / self.total_yin_yang_triggers * 100
 
 
 def record_line_hits(stats: SimulationStats, line_results: list[dict]) -> None:
@@ -233,18 +284,35 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
     yin_yang_triggered = win_result["yin_yang_feature_result"] is not None
     instant_win_triggered = instant_win > 0
 
-    grand_activated = False
+    if instant_win > stats.max_instant_win:
+        stats.max_instant_win = instant_win
+
+    if instant_win_triggered:
+        for value_obj in win_result["credit_values"].values():
+            label = value_obj.label
+            stats.instant_value_counts[label] = (
+                stats.instant_value_counts.get(label, 0) + 1
+            )
+
+    grand_column_assigned = False
+    grand_reached = False
     grand_won = False
     grand_win_amount = 0
 
     if yin_yang_triggered:
         feature_result = win_result["yin_yang_feature_result"]
-        if feature_result is not None and feature_result.grand_column_index is not None:
-            grand_activated = True
 
-            if feature_result.grand_column_index in feature_result.completed_columns:
+        if feature_result is not None and feature_result.grand_column_index is not None:
+            grand_column_assigned = True
+
+            grand_col = feature_result.grand_column_index
+
+            if str(feature_result.final_column_values[grand_col]) == "GRAND":
+                grand_reached = True
+
+            if grand_reached and grand_col in feature_result.completed_columns:
                 grand_won = True
-                grand_win_amount = 10000
+                grand_win_amount = JACKPOT_VALUES["grand"]
 
     record_line_hits(stats, win_result["line_results"])
     record_scatter_distribution(stats, scatter_count)
@@ -265,8 +333,11 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
 
         stats.total_yin_yang_triggers += 1
 
-        if grand_activated:
-            stats.grand_activations += 1
+        if grand_column_assigned:
+            stats.grand_columns_assigned += 1
+
+        if grand_reached:
+            stats.grand_reached += 1
 
         if grand_won:
             stats.grand_wins += 1
@@ -294,6 +365,9 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
         stats.free_spin_instant_win += instant_win
     else:
         stats.base_game_win += line_win + scatter_win + instant_win
+        stats.base_game_win_with_features += (
+            line_win + scatter_win + instant_win + yin_yang_win
+        )
         stats.base_game_line_win += line_win
         stats.base_game_scatter_win += scatter_win
         stats.base_game_yin_yang_win += yin_yang_win
@@ -301,9 +375,18 @@ def simulate_single_spin(state: GameState, stats: SimulationStats) -> None:
 
 
 def run_simulation(
-    start_balance: float, bet: float, base_game_spins: int
+    start_balance: float,
+    bet: float,
+    base_game_spins: int,
+    credits_bet: int = 50,
+    denom: float = 0.01,
 ) -> SimulationStats:
-    state = GameState(balance=start_balance, current_bet=bet)
+    state = GameState(
+        balance=start_balance,
+        current_bet=bet,
+        credits_bet=credits_bet,
+        denom=denom,
+    )
     stats = SimulationStats()
 
     completed_base_spins = 0
@@ -451,16 +534,16 @@ def print_simulation_stats(stats: SimulationStats) -> None:
     print_scatter_distribution(stats)
 
 
-def print_balancing_summary(stats: SimulationStats) -> None:
-    print("=== BALANCING SUMMARY ===")
+def print_balancing_summary(stats: SimulationStats, credit_bet: int = 100) -> None:
+    print(f"=== BALANCING SUMMARY ({credit_bet} CREDITS) ===")
     print(
         f"Spins={stats.total_spins} | "
         f"Base={stats.base_game_spins} | "
         f"FS={stats.free_spins_played}"
     )
     print(
-        f"Bet={stats.total_bet} | "
-        f"Win={stats.total_win} | "
+        f"Bet={stats.total_bet:.2f} | "
+        f"Win={stats.total_win:.2f} | "
         f"RTP={stats.rtp():.2f}% | "
         f"Hit Rate={stats.hit_rate():.2f}%"
     )
@@ -470,13 +553,24 @@ def print_balancing_summary(stats: SimulationStats) -> None:
     print(
         f"  Line={stats.line_rtp():.2f}% | "
         f"Scatter={stats.scatter_rtp():.2f}% | "
+        f"Instant={stats.instant_rtp():.2f}% | "
         f"Yin-Yang={stats.yin_yang_rtp():.2f}% | "
         f"Bull Feature={stats.bull_feature_rtp():.2f}% | "
-        f"Grand RTP={stats.grand_rtp():.2f}%"
+        f"Grand={stats.grand_rtp():.2f}%"
     )
     print(
-        f"  Base Game={stats.base_game_rtp():.2f}% | "
-        f"Free Spins={stats.free_spin_rtp():.2f}%"
+        f"  Base excl. Yin-Yang={stats.base_game_rtp():.2f}% | "
+        f"Base incl. Yin-Yang={stats.base_game_with_features_rtp():.2f}% | "
+        f"Free Games incl. Bull={stats.free_spin_rtp():.2f}%"
+    )
+    print()
+
+    print("Base Game Detail RTP:")
+    print(
+        f"  Base Lines={stats.base_line_rtp():.2f}% | "
+        f"Base Scatter={stats.base_scatter_rtp():.2f}% | "
+        f"Base Instant={stats.base_instant_rtp():.2f}% | "
+        f"Base Yin-Yang={stats.base_yin_yang_rtp():.2f}%"
     )
     print()
 
@@ -488,38 +582,58 @@ def print_balancing_summary(stats: SimulationStats) -> None:
     )
     print(
         f"  Yin-Yang Base={stats.base_game_yin_yang_triggers} | "
-        f"Yin-Yang FS={stats.free_spin_yin_yang_triggers}"
+        f"Yin-Yang FS={stats.free_spin_yin_yang_triggers} | "
+        f"Yin-Yang Total={stats.total_yin_yang_triggers}"
     )
     print(
         f"  Instant Base={stats.base_game_instant_win_triggers} | "
-        f"Instant FS={stats.free_spin_instant_win_triggers}"
+        f"Instant FS={stats.free_spin_instant_win_triggers} | "
+        f"Avg Instant Win={stats.avg_instant_win():.2f} | "
+        f"Max Instant Win={stats.max_instant_win:.2f}"
     )
     print(
         f"  Bull Feature Trigger={stats.bull_feature_triggers} | "
         f"Avg Bulls/Bull Feature={stats.avg_bulls_per_bull_feature():.2f}"
     )
     print()
+
+    print("Grand:")
     print(
-        f"  Grand Activations={stats.grand_activations} | "
-        f"Grand Wins={stats.grand_wins} | "
-        f"Grand Act/Yin-Yang={stats.grand_activation_rate_per_yin_yang():.2f}% | "
-        f"Grand Win/Activation={stats.grand_win_rate_per_activation():.2f}%"
+        f"  Grand Column Assigned={stats.grand_columns_assigned} | "
+        f"Grand Reached={stats.grand_reached} | "
+        f"Grand Wins={stats.grand_wins}"
+    )
+    print(
+        f"  Grand Reached/Yin-Yang={stats.grand_reach_rate_per_yin_yang():.2f}% | "
+        f"Grand Win/Reached={(stats.grand_wins / stats.grand_reached * 100) if stats.grand_reached else 0:.2f}% | "
+        f"Grand RTP={stats.grand_rtp():.2f}%"
     )
     print()
 
     print("Free Games:")
     print(
         f"  Sessions={stats.completed_free_spin_sessions} | "
-        f"Total FS Win={stats.free_spin_win} | "
+        f"Total FS Win={stats.free_spin_win:.2f} | "
         f"Avg FS Total Win/Session={stats.avg_free_spin_session_win():.2f}"
     )
     print()
 
     print("Feature Wins:")
     print(
-        f"  Yin-Yang Total={stats.total_yin_yang_win} | "
-        f"Instant Total={stats.total_instant_win} | "
-        f"Bull Feature Total={stats.total_bull_feature_win} | "
-        f"Grand Total={stats.total_grand_win}"
+        f"  Yin-Yang Total={stats.total_yin_yang_win:.2f} | "
+        f"Instant Total={stats.total_instant_win:.2f} | "
+        f"Bull Feature Total={stats.total_bull_feature_win:.2f} | "
+        f"Grand Total={stats.total_grand_win:.2f}"
     )
     print(f"  Avg Bull Feature Win={stats.avg_bull_feature_win():.2f}")
+    print()
+
+    print("Instant Value Distribution:")
+    if not stats.instant_value_counts:
+        print("  No instant values hit.")
+    else:
+        for label in sorted(
+            stats.instant_value_counts,
+            key=lambda x: (not x.isdigit(), float(x) if x.isdigit() else x),
+        ):
+            print(f"  {label}: {stats.instant_value_counts[label]}")
