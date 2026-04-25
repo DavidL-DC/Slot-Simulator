@@ -22,6 +22,9 @@ from symbols import ALL_SYMBOLS, Symbol, COLLECTOR, CREDIT
 from bull_feature import play_bull_feature
 from config import PAYLINES
 
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 WINDOW_WIDTH = 1000
 WINDOW_HEIGHT = 700
@@ -109,6 +112,8 @@ class SlotUI:
         self.pending_collector_positions = []
         self.pending_free_spin_bull_count = 0
 
+        self.pending_winning_line_results = []
+
         self.feature_mode = False
         self.feature_result = None
         self.feature_spin_index = -1
@@ -180,6 +185,23 @@ class SlotUI:
         self.bet_minus_rect = pygame.Rect(20, 470, 60, 50)
         self.bet_plus_rect = pygame.Rect(90, 470, 60, 50)
 
+        self.last_winning_line_results = []
+        self.active_line_win_index = 0
+        self.active_line_win_start_time = 0
+        self.line_win_display_duration_ms = 2000
+
+        self.symbol_images = self.load_symbol_images()
+
+        self.info_messages = [
+            f"{len(PAYLINES)} Gewinnlinien",
+            f"Credits: {self.state.credits_bet}",
+            f"Einsatz: {self.state.current_bet:.2f}",
+            f"Denom: {self.state.denom:.2f}",
+        ]
+        self.info_message_index = 0
+        self.info_message_start_time = 0
+        self.info_message_duration_ms = 2500
+
     def run(self) -> None:
         while self.running:
             self.handle_events()
@@ -188,6 +210,8 @@ class SlotUI:
             self.update_feature_respin_animation()
             self.update_bull_feature_playback()
             self.update_bull_feature_fill_animation()
+            self.update_line_win_display()
+            self.update_info_message_display()
             self.draw()
             pygame.display.flip()
             self.clock.tick(60)
@@ -425,6 +449,44 @@ class SlotUI:
             self.last_total_win += self.bull_feature_result.total_win
             self.bull_feature_win_applied = True
 
+    def load_symbol_images(self) -> dict[str, pygame.Surface]:
+        image_paths = {
+            "nine": BASE_DIR / "assets" / "symbols" / "nine.png",
+            "ten": BASE_DIR / "assets" / "symbols" / "ten.png",
+            "jack": BASE_DIR / "assets" / "symbols" / "jack.png",
+            "queen": BASE_DIR / "assets" / "symbols" / "queen.png",
+            "king": BASE_DIR / "assets" / "symbols" / "king.png",
+            "gong": BASE_DIR / "assets" / "symbols" / "gong.png",
+            "house": BASE_DIR / "assets" / "symbols" / "house.png",
+            "lantern": BASE_DIR / "assets" / "symbols" / "lantern.png",
+            "vase": BASE_DIR / "assets" / "symbols" / "vase.png",
+            "coin": BASE_DIR / "assets" / "symbols" / "coin.png",
+            "bull": BASE_DIR / "assets" / "symbols" / "bull.png",
+            "credit": BASE_DIR / "assets" / "symbols" / "credit.png",
+            "collector": BASE_DIR / "assets" / "symbols" / "collector.png",
+            "yin_yang": BASE_DIR / "assets" / "symbols" / "yin_yang.png",
+        }
+
+        images = {}
+        for name, path in image_paths.items():
+            image = pygame.image.load(path).convert_alpha()
+            images[name] = pygame.transform.smoothscale(
+                image,
+                (CELL_WIDTH - 18, CELL_HEIGHT - 18),
+            )
+
+        return images
+
+    def get_active_winning_positions(self) -> list[tuple[int, int]]:
+        if not self.last_winning_line_results:
+            return []
+
+        result = self.last_winning_line_results[self.active_line_win_index]
+        payline = result["payline"]
+        match_count = result["match_count"]
+
+        return [(payline[reel_index], reel_index) for reel_index in range(match_count)]
+
     def get_feature_spin_symbol(self, bull_feature: bool = False) -> Symbol:
         weighted_symbols = [
             symbol
@@ -505,6 +567,21 @@ class SlotUI:
 
         if all(self.locked_reels):
             self.finish_spin()
+
+    def update_line_win_display(self) -> None:
+        if not self.last_winning_line_results:
+            return
+
+        current_time = pygame.time.get_ticks()
+
+        if (
+            current_time - self.active_line_win_start_time
+            >= self.line_win_display_duration_ms
+        ):
+            self.active_line_win_index = (self.active_line_win_index + 1) % len(
+                self.last_winning_line_results
+            )
+            self.active_line_win_start_time = current_time
 
     def show_overlay(
         self,
@@ -800,6 +877,24 @@ class SlotUI:
                     self.bull_feature_win_applied = True
             return
 
+    def update_info_message_display(self) -> None:
+        current_time = pygame.time.get_ticks()
+
+        if current_time - self.info_message_start_time >= self.info_message_duration_ms:
+            self.info_message_index = (self.info_message_index + 1) % len(
+                self.info_messages
+            )
+            self.info_message_start_time = current_time
+
+    def refresh_info_messages(self) -> None:
+        self.info_messages = [
+            f"{len(PAYLINES)} Gewinnlinien",
+            f"Credits: {self.state.credits_bet}",
+            f"Einsatz: {self.state.current_bet:.2f}",
+            f"Denom: {self.state.denom:.2f}",
+            f"Gewinnlinien zahlen von links nach rechts",
+        ]
+
     def change_bet(self, delta: int) -> None:
         if self.is_spinning:
             return
@@ -823,6 +918,8 @@ class SlotUI:
         self.state.current_bet = new_bet
         self.status_text = f"Einsatz geändert auf {self.state.current_bet}"
 
+        self.refresh_info_messages()
+
     def try_spin(self) -> None:
         if self.is_spinning:
             return
@@ -835,6 +932,11 @@ class SlotUI:
         self.last_credit_values = {}
         self.last_credit_positions = []
         self.last_collector_positions = []
+
+        self.last_winning_line_results = []
+        self.pending_winning_line_results = []
+        self.active_line_win_index = 0
+        self.active_line_win_start_time = 0
 
         free_spin_mode = is_free_spin(self.state)
         self.pending_free_spin_mode = free_spin_mode
@@ -854,6 +956,10 @@ class SlotUI:
         win_result = evaluate_total_win(
             self.final_grid, self.state.current_bet, free_spin_mode
         )
+
+        self.pending_winning_line_results = [
+            result for result in win_result["line_results"] if result["win"] > 0
+        ]
 
         total_win = win_result["total_win"]
         line_win = win_result["line_win"]
@@ -1105,6 +1211,9 @@ class SlotUI:
         self.last_credit_values = self.pending_credit_values.copy()
         self.last_credit_positions = self.pending_credit_positions.copy()
         self.last_collector_positions = self.pending_collector_positions.copy()
+        self.last_winning_line_results = self.pending_winning_line_results.copy()
+        self.active_line_win_index = 0
+        self.active_line_win_start_time = pygame.time.get_ticks()
 
         if self.pending_awarded_free_spins > 0:
             self.show_overlay(
@@ -1132,12 +1241,6 @@ class SlotUI:
                 1600,
                 subtext="Collector paid all Credit symbols",
             )
-        elif self.pending_total_win > 0 and self.pending_awarded_free_spins == 0:
-            self.show_overlay(
-                f"WIN {self.pending_total_win}",
-                (120, 220, 120),
-                1400,
-            )
 
         if self.pending_free_spin_mode:
             self.status_text = f"Freispiele beendet. Gewinn: {self.pending_total_win}"
@@ -1160,6 +1263,7 @@ class SlotUI:
         self.draw_title()
         self.draw_top_panel()
         self.draw_grid()
+        self.draw_line_win_text()
         self.draw_controls()
         self.draw_bottom_panel()
         self.draw_overlay()
@@ -1230,6 +1334,9 @@ class SlotUI:
                 inner_highlight_rect,
                 border_radius=16,
             )
+
+        winning_positions = self.get_active_winning_positions()
+
         for row_index, row in enumerate(self.current_grid):
             for col_index, symbol in enumerate(row):
                 x = GRID_X + col_index * (CELL_WIDTH + CELL_GAP)
@@ -1256,6 +1363,27 @@ class SlotUI:
                     self.screen, border_color, cell_rect, width=3, border_radius=12
                 )
 
+                is_winning = (row_index, col_index) in winning_positions
+
+                scale_bonus = (
+                    6 if is_winning and (pygame.time.get_ticks() // 250) % 2 == 0 else 0
+                )
+                cell_rect = pygame.Rect(
+                    x - scale_bonus // 2,
+                    y - scale_bonus // 2,
+                    CELL_WIDTH + scale_bonus,
+                    CELL_HEIGHT + scale_bonus,
+                )
+
+                if is_winning:
+                    pygame.draw.rect(
+                        self.screen,
+                        (255, 230, 120),
+                        cell_rect,
+                        width=5,
+                        border_radius=12,
+                    )
+
                 if self.is_spinning and not self.locked_reels[col_index]:
                     inner_rect = pygame.Rect(
                         x + 8, y + 8, CELL_WIDTH - 16, CELL_HEIGHT - 16
@@ -1277,16 +1405,26 @@ class SlotUI:
                             value_obj = self.last_credit_values[grid_position]
                             value_text = value_obj.label
 
-                    symbol_surface = self.small_font.render(
-                        symbol.display, True, (30, 30, 40)
-                    )
-                    self.screen.blit(
-                        symbol_surface,
-                        (
-                            x + CELL_WIDTH // 2 - symbol_surface.get_width() // 2,
-                            y + 28,
-                        ),
-                    )
+                    image = self.symbol_images.get(symbol.name)
+                    if image:
+                        self.screen.blit(
+                            image,
+                            (
+                                x + CELL_WIDTH // 2 - image.get_width() // 2,
+                                y + 28,
+                            ),
+                        )
+                    else:
+                        symbol_surface = self.small_font.render(
+                            symbol.display, True, (30, 30, 40)
+                        )
+                        self.screen.blit(
+                            symbol_surface,
+                            (
+                                x + CELL_WIDTH // 2 - symbol_surface.get_width() // 2,
+                                y + 28,
+                            ),
+                        )
 
                     if value_text:
                         value_surface = self.small_font.render(
@@ -1300,16 +1438,43 @@ class SlotUI:
                             ),
                         )
                 else:
-                    symbol_surface = self.symbol_font.render(
-                        symbol.display, True, (30, 30, 40)
-                    )
-                    self.screen.blit(
-                        symbol_surface,
-                        (
-                            x + CELL_WIDTH // 2 - symbol_surface.get_width() // 2,
-                            y + CELL_HEIGHT // 2 - symbol_surface.get_height() // 2,
-                        ),
-                    )
+                    image = self.symbol_images.get(symbol.name)
+                    if image:
+                        self.screen.blit(
+                            image,
+                            (
+                                x + CELL_WIDTH // 2 - image.get_width() // 2,
+                                y + CELL_HEIGHT // 2 - image.get_height() // 2,
+                            ),
+                        )
+                    else:
+                        symbol_surface = self.symbol_font.render(
+                            symbol.display, True, (30, 30, 40)
+                        )
+                        self.screen.blit(
+                            symbol_surface,
+                            (
+                                x + CELL_WIDTH // 2 - symbol_surface.get_width() // 2,
+                                y + CELL_HEIGHT // 2 - symbol_surface.get_height() // 2,
+                            ),
+                        )
+
+    def draw_line_win_text(self) -> None:
+        if not self.last_winning_line_results:
+            return
+
+        result = self.last_winning_line_results[self.active_line_win_index]
+
+        text = f"Line {result['line_index']}: {result['win']:.2f}"
+
+        surface = self.label_font.render(text, True, WIN_COLOR)
+        self.screen.blit(
+            surface,
+            (
+                WINDOW_WIDTH // 2 - surface.get_width() // 2,
+                GRID_Y + GRID_ROWS * (CELL_HEIGHT + CELL_GAP) + 18,
+            ),
+        )
 
     def draw_controls(self) -> None:
         self.draw_small_button(self.bet_minus_rect, "-", enabled=not self.is_spinning)
@@ -1396,6 +1561,10 @@ class SlotUI:
 
         self.screen.blit(row_1_surface, (80, 585))
         self.screen.blit(row_2_surface, (80, 620))
+
+        info_text = self.info_messages[self.info_message_index]
+        info_surface = self.small_font.render(info_text, True, ACCENT_COLOR)
+        self.screen.blit(info_surface, (80, 640))
 
     def draw_overlay(self) -> None:
         current_time = pygame.time.get_ticks()
@@ -1589,24 +1758,39 @@ class SlotUI:
                         display_symbol = self.feature_background_grid[row_index][
                             col_index
                         ]
-
-                    display_text = (
-                        display_symbol.display if display_symbol is not None else ""
+                    image = (
+                        self.symbol_images.get(display_symbol.name)
+                        if display_symbol is not None
+                        else None
                     )
-
-                    if display_text:
-                        spin_surface = self.small_font.render(
-                            display_text, True, (230, 230, 240)
-                        )
+                    if image:
                         self.screen.blit(
-                            spin_surface,
+                            image,
                             (
-                                x + feature_cell_w // 2 - spin_surface.get_width() // 2,
-                                y
-                                + feature_cell_h // 2
-                                - spin_surface.get_height() // 2,
+                                x + feature_cell_w // 2 - image.get_width() // 2,
+                                y + feature_cell_h // 2 - image.get_height() // 2,
                             ),
                         )
+                    else:
+                        display_text = (
+                            display_symbol.display if display_symbol is not None else ""
+                        )
+
+                        if display_text:
+                            spin_surface = self.small_font.render(
+                                display_text, True, (230, 230, 240)
+                            )
+                            self.screen.blit(
+                                spin_surface,
+                                (
+                                    x
+                                    + feature_cell_w // 2
+                                    - spin_surface.get_width() // 2,
+                                    y
+                                    + feature_cell_h // 2
+                                    - spin_surface.get_height() // 2,
+                                ),
+                            )
 
                 if value is not None:
                     yin_surface = self.small_font.render("YIN", True, (30, 20, 40))
@@ -1802,20 +1986,34 @@ class SlotUI:
                         ]
 
                     if display_symbol is not None:
-                        symbol_surface = self.small_font.render(
-                            display_symbol.display, True, (235, 235, 245)
+                        image = (
+                            self.symbol_images.get(display_symbol.name)
+                            if display_symbol is not None
+                            else None
                         )
-                        self.screen.blit(
-                            symbol_surface,
-                            (
-                                x
-                                + feature_cell_w // 2
-                                - symbol_surface.get_width() // 2,
-                                y
-                                + feature_cell_h // 2
-                                - symbol_surface.get_height() // 2,
-                            ),
-                        )
+                        if image:
+                            self.screen.blit(
+                                image,
+                                (
+                                    x + feature_cell_w // 2 - image.get_width() // 2,
+                                    y + feature_cell_h // 2 - image.get_height() // 2,
+                                ),
+                            )
+                        else:
+                            symbol_surface = self.small_font.render(
+                                display_symbol.display, True, (235, 235, 245)
+                            )
+                            self.screen.blit(
+                                symbol_surface,
+                                (
+                                    x
+                                    + feature_cell_w // 2
+                                    - symbol_surface.get_width() // 2,
+                                    y
+                                    + feature_cell_h // 2
+                                    - symbol_surface.get_height() // 2,
+                                ),
+                            )
 
         collected_text = f"Collected Bulls: {self.bull_feature_result.collected_bulls}"
         collected_surface = self.label_font.render(
