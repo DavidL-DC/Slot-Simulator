@@ -26,8 +26,9 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-WINDOW_WIDTH = 1000
-WINDOW_HEIGHT = 700
+BASE_WIDTH = 1600
+BASE_HEIGHT = 900
+ASPECT_RATIO = BASE_WIDTH / BASE_HEIGHT
 
 GRID_COLS = 5
 GRID_ROWS = 3
@@ -42,11 +43,12 @@ GRID_Y = 160
 BACKGROUND_COLOR = (20, 20, 30)
 PANEL_COLOR = (35, 35, 50)
 CELL_COLOR = (220, 220, 230)
-TEXT_COLOR = (245, 245, 245)
+TEXT_COLOR = (255, 255, 255)
+GOLD_COLOR = (255, 204, 0)
 ACCENT_COLOR = (212, 175, 55)
-BUTTON_COLOR = (180, 50, 50)
-BUTTON_HOVER_COLOR = (210, 70, 70)
-BUTTON_DISABLED_COLOR = (90, 90, 90)
+BUTTON_COLOR = (0, 0, 0, 0)
+BUTTON_HOVER_COLOR = (245, 245, 245, 50)
+BUTTON_DISABLED_COLOR = (90, 90, 90, 50)
 SMALL_BUTTON_COLOR = (70, 120, 200)
 SMALL_BUTTON_HOVER_COLOR = (90, 140, 220)
 WIN_COLOR = (80, 180, 90)
@@ -58,8 +60,21 @@ class SlotUI:
         pygame.init()
         pygame.display.set_caption("Fortune Bull Prototype")
 
-        self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+        self.windowed_size = (1280, 720)
+        self.fullscreen = False
+
+        self.screen = pygame.display.set_mode(
+            self.windowed_size,
+            pygame.RESIZABLE,
+        )
+
+        self.canvas = pygame.Surface((BASE_WIDTH, BASE_HEIGHT))
+        self.canvas_rect = self.canvas.get_rect()
         self.clock = pygame.time.Clock()
+
+        self.background_image = pygame.image.load(
+            BASE_DIR / "assets" / "backgrounds" / "base.png"
+        ).convert()
 
         self.title_font = pygame.font.SysFont("arial", 36, bold=True)
         self.label_font = pygame.font.SysFont("arial", 24)
@@ -178,10 +193,10 @@ class SlotUI:
         self.bull_feature_flash_cells: list[tuple[int, int]] = []
         self.bull_feature_flash_until = 0
 
-        self.bull_feature_continue_button_rect = pygame.Rect(380, 610, 240, 52)
+        self.bull_feature_continue_button_rect = pygame.Rect(380, 615, 240, 47)
         self.bull_feature_win_applied = False
 
-        self.spin_button_rect = pygame.Rect(830, 470, 140, 60)
+        self.spin_button_rect = pygame.Rect(1467, 665, 113, 48)
         self.bet_minus_rect = pygame.Rect(20, 470, 60, 50)
         self.bet_plus_rect = pygame.Rect(90, 470, 60, 50)
 
@@ -194,9 +209,7 @@ class SlotUI:
 
         self.info_messages = [
             f"{len(PAYLINES)} Gewinnlinien",
-            f"Credits: {self.state.credits_bet}",
-            f"Einsatz: {self.state.current_bet:.2f}",
-            f"Denom: {self.state.denom:.2f}",
+            f"Credits per Line: {int(self.state.credits_bet/len(PAYLINES))}",
         ]
         self.info_message_index = 0
         self.info_message_start_time = 0
@@ -213,20 +226,50 @@ class SlotUI:
             self.update_line_win_display()
             self.update_info_message_display()
             self.draw()
+            self.blit_scaled_canvas()
             pygame.display.flip()
             self.clock.tick(60)
 
         pygame.quit()
+
+    def get_canvas_mouse_pos(self) -> tuple[int, int] | None:
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+
+        window_width, window_height = self.screen.get_size()
+
+        scale = min(
+            window_width / BASE_WIDTH,
+            window_height / BASE_HEIGHT,
+        )
+
+        scaled_width = int(BASE_WIDTH * scale)
+        scaled_height = int(BASE_HEIGHT * scale)
+
+        offset_x = (window_width - scaled_width) // 2
+        offset_y = (window_height - scaled_height) // 2
+
+        canvas_x = (mouse_x - offset_x) / scale
+        canvas_y = (mouse_y - offset_y) / scale
+
+        if canvas_x < 0 or canvas_x >= BASE_WIDTH:
+            return None
+
+        if canvas_y < 0 or canvas_y >= BASE_HEIGHT:
+            return None
+
+        print(canvas_x, canvas_y)
+        return int(canvas_x), int(canvas_y)
 
     def handle_events(self) -> None:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
 
+            if event.type == pygame.VIDEORESIZE and not self.fullscreen:
+                self.resize_window_16_9(event.w, event.h)
+
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    self.running = False
-                elif event.key == pygame.K_SPACE:
+                if event.key == pygame.K_SPACE:
                     self.handle_skip_or_continue()
                 elif event.key == pygame.K_UP:
                     self.change_bet(10)
@@ -238,9 +281,14 @@ class SlotUI:
                     self.debug_trigger_yin_yang()
                 elif event.key == pygame.K_i:
                     self.debug_trigger_instant_win()
+                elif event.key == pygame.K_F11:
+                    self.toggle_fullscreen()
 
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                mouse_pos = pygame.mouse.get_pos()
+                mouse_pos = self.get_canvas_mouse_pos()
+
+                if mouse_pos is None:
+                    return
 
                 if (
                     self.feature_mode
@@ -267,6 +315,36 @@ class SlotUI:
                     self.change_bet(-10)
                 elif self.bet_plus_rect.collidepoint(mouse_pos):
                     self.change_bet(10)
+
+    def resize_window_16_9(self, width: int, height: int) -> None:
+        target_height = int(width * 9 / 16)
+
+        if target_height <= height:
+            new_width = width
+            new_height = target_height
+        else:
+            new_height = height
+            new_width = int(height * 16 / 9)
+
+        self.windowed_size = (new_width, new_height)
+        self.screen = pygame.display.set_mode(
+            self.windowed_size,
+            pygame.RESIZABLE,
+        )
+
+    def toggle_fullscreen(self) -> None:
+        self.fullscreen = not self.fullscreen
+
+        if self.fullscreen:
+            self.screen = pygame.display.set_mode(
+                (0, 0),
+                pygame.FULLSCREEN,
+            )
+        else:
+            self.screen = pygame.display.set_mode(
+                self.windowed_size,
+                pygame.RESIZABLE,
+            )
 
     def has_skippable_animation(self) -> bool:
         if self.is_spinning:
@@ -476,6 +554,28 @@ class SlotUI:
             )
 
         return images
+
+    def blit_scaled_canvas(self) -> None:
+        window_width, window_height = self.screen.get_size()
+
+        scale = min(
+            window_width / BASE_WIDTH,
+            window_height / BASE_HEIGHT,
+        )
+
+        scaled_width = int(BASE_WIDTH * scale)
+        scaled_height = int(BASE_HEIGHT * scale)
+
+        x = (window_width - scaled_width) // 2
+        y = (window_height - scaled_height) // 2
+
+        scaled_canvas = pygame.transform.smoothscale(
+            self.canvas,
+            (scaled_width, scaled_height),
+        )
+
+        self.screen.fill((0, 0, 0))
+        self.screen.blit(scaled_canvas, (x, y))
 
     def get_active_winning_positions(self) -> list[tuple[int, int]]:
         if not self.last_winning_line_results:
@@ -889,10 +989,7 @@ class SlotUI:
     def refresh_info_messages(self) -> None:
         self.info_messages = [
             f"{len(PAYLINES)} Gewinnlinien",
-            f"Credits: {self.state.credits_bet}",
-            f"Einsatz: {self.state.current_bet:.2f}",
-            f"Denom: {self.state.denom:.2f}",
-            f"Gewinnlinien zahlen von links nach rechts",
+            f"Credits per Line: {int(self.state.current_bet/len(PAYLINES))}",
         ]
 
     def change_bet(self, delta: int) -> None:
@@ -1258,52 +1355,23 @@ class SlotUI:
                 self.status_text = "Freispiele beendet"
 
     def draw(self) -> None:
-        self.screen.fill(BACKGROUND_COLOR)
-
-        self.draw_title()
-        self.draw_top_panel()
+        self.canvas.fill(BACKGROUND_COLOR)
+        self.draw_background()
         self.draw_grid()
-        self.draw_line_win_text()
-        self.draw_controls()
         self.draw_bottom_panel()
+        self.draw_spin_button()
+        self.draw_line_win_text()
         self.draw_overlay()
         self.draw_yin_yang_feature_board()
         self.draw_bull_feature_board()
-        self.draw_help_text()
+        self.draw_info_text()
 
-    def draw_title(self) -> None:
-        title_surface = self.title_font.render(
-            "Fortune Bull Prototype", True, ACCENT_COLOR
+    def draw_background(self) -> None:
+        scaled_background = pygame.transform.smoothscale(
+            self.background_image,
+            (BASE_WIDTH, BASE_HEIGHT),
         )
-        self.screen.blit(
-            title_surface, (WINDOW_WIDTH // 2 - title_surface.get_width() // 2, 30)
-        )
-
-    def draw_top_panel(self) -> None:
-        panel_rect = pygame.Rect(60, 80, 880, 60)
-        pygame.draw.rect(self.screen, PANEL_COLOR, panel_rect, border_radius=12)
-
-        values = [
-            f"Guthaben: {self.state.balance:.2f}",
-            f"Einsatz: {self.state.current_bet:.2f}",
-            f"Denom: {self.state.denom:.2f}",
-            f"Credits: {self.state.credits_bet}",
-            f"Freispiele: {self.state.free_spins_remaining}",
-            f"Bulls: {self.state.collected_bulls}",
-            f"Letzter Gewinn: {self.last_total_win}",
-        ]
-
-        positions = [70, 210, 340, 470, 620, 760, 870]
-
-        for x, text in zip(positions, values):
-            surface = self.small_font.render(text, True, TEXT_COLOR)
-            self.screen.blit(surface, (x, 97))
-
-        if is_free_spin(self.state) or self.pending_free_spin_mode:
-            fs_surface = self.small_font.render(
-                "FREE SPINS ACTIVE", True, (255, 220, 120)
-            )
-            self.screen.blit(fs_surface, (700, 115))
+        self.canvas.blit(scaled_background, (0, 0))
 
     def draw_grid(self) -> None:
         if is_free_spin(self.state) or self.pending_free_spin_mode:
@@ -1315,7 +1383,7 @@ class SlotUI:
             )
 
             pygame.draw.rect(
-                self.screen,
+                self.canvas,
                 (210, 170, 60),
                 highlight_rect,
                 border_radius=18,
@@ -1329,7 +1397,7 @@ class SlotUI:
             )
 
             pygame.draw.rect(
-                self.screen,
+                self.canvas,
                 BACKGROUND_COLOR,
                 inner_highlight_rect,
                 border_radius=16,
@@ -1358,9 +1426,9 @@ class SlotUI:
                 elif symbol.is_collector:
                     inner_color = (255, 185, 120)
 
-                pygame.draw.rect(self.screen, inner_color, cell_rect, border_radius=12)
+                pygame.draw.rect(self.canvas, inner_color, cell_rect, border_radius=12)
                 pygame.draw.rect(
-                    self.screen, border_color, cell_rect, width=3, border_radius=12
+                    self.canvas, border_color, cell_rect, width=3, border_radius=12
                 )
 
                 is_winning = (row_index, col_index) in winning_positions
@@ -1377,7 +1445,7 @@ class SlotUI:
 
                 if is_winning:
                     pygame.draw.rect(
-                        self.screen,
+                        self.canvas,
                         (255, 230, 120),
                         cell_rect,
                         width=5,
@@ -1389,7 +1457,7 @@ class SlotUI:
                         x + 8, y + 8, CELL_WIDTH - 16, CELL_HEIGHT - 16
                     )
                     pygame.draw.rect(
-                        self.screen, (180, 190, 210), inner_rect, border_radius=10
+                        self.canvas, (180, 190, 210), inner_rect, border_radius=10
                     )
 
                 if symbol.is_credit_value_symbol:
@@ -1407,7 +1475,7 @@ class SlotUI:
 
                     image = self.symbol_images.get(symbol.name)
                     if image:
-                        self.screen.blit(
+                        self.canvas.blit(
                             image,
                             (
                                 x + CELL_WIDTH // 2 - image.get_width() // 2,
@@ -1418,7 +1486,7 @@ class SlotUI:
                         symbol_surface = self.small_font.render(
                             symbol.display, True, (30, 30, 40)
                         )
-                        self.screen.blit(
+                        self.canvas.blit(
                             symbol_surface,
                             (
                                 x + CELL_WIDTH // 2 - symbol_surface.get_width() // 2,
@@ -1430,7 +1498,7 @@ class SlotUI:
                         value_surface = self.small_font.render(
                             value_text, True, (30, 30, 40)
                         )
-                        self.screen.blit(
+                        self.canvas.blit(
                             value_surface,
                             (
                                 x + CELL_WIDTH // 2 - value_surface.get_width() // 2,
@@ -1440,7 +1508,7 @@ class SlotUI:
                 else:
                     image = self.symbol_images.get(symbol.name)
                     if image:
-                        self.screen.blit(
+                        self.canvas.blit(
                             image,
                             (
                                 x + CELL_WIDTH // 2 - image.get_width() // 2,
@@ -1451,13 +1519,28 @@ class SlotUI:
                         symbol_surface = self.symbol_font.render(
                             symbol.display, True, (30, 30, 40)
                         )
-                        self.screen.blit(
+                        self.canvas.blit(
                             symbol_surface,
                             (
                                 x + CELL_WIDTH // 2 - symbol_surface.get_width() // 2,
                                 y + CELL_HEIGHT // 2 - symbol_surface.get_height() // 2,
                             ),
                         )
+
+    def draw_bottom_panel(self) -> None:
+        balance_surface = self.title_font.render(
+            f"{self.state.balance:.2f}", True, TEXT_COLOR
+        )
+        bet_surface = self.title_font.render(
+            f"{self.state.current_bet:.2f}", True, TEXT_COLOR
+        )
+        win_surface = self.title_font.render(
+            f"{self.last_total_win:.2f}", True, TEXT_COLOR
+        )
+
+        self.canvas.blit(balance_surface, (450, 817))
+        self.canvas.blit(bet_surface, (800, 817))
+        self.canvas.blit(win_surface, (1200, 817))
 
     def draw_line_win_text(self) -> None:
         if not self.last_winning_line_results:
@@ -1467,48 +1550,32 @@ class SlotUI:
 
         text = f"Line {result['line_index']}: {result['win']:.2f}"
 
-        surface = self.label_font.render(text, True, WIN_COLOR)
-        self.screen.blit(
-            surface,
-            (
-                WINDOW_WIDTH // 2 - surface.get_width() // 2,
-                GRID_Y + GRID_ROWS * (CELL_HEIGHT + CELL_GAP) + 18,
-            ),
+        surface = self.small_font.render(text, True, TEXT_COLOR)
+        self.canvas.blit(surface, (1300, 875))
+
+    @staticmethod
+    def draw_transparent_rect(
+        surface: pygame.Surface,
+        color: tuple[int, int, int, int],
+        rect: pygame.Rect,
+        border_radius: int = 0,
+    ):
+        temp_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+
+        pygame.draw.rect(
+            temp_surface,
+            color,  # RGBA
+            (0, 0, rect.width, rect.height),
+            border_radius=border_radius,
         )
 
-    def draw_controls(self) -> None:
-        self.draw_small_button(self.bet_minus_rect, "-", enabled=not self.is_spinning)
-        self.draw_small_button(self.bet_plus_rect, "+", enabled=not self.is_spinning)
-        self.draw_spin_button()
-
-        bet_label = self.small_font.render("Einsatz", True, TEXT_COLOR)
-        self.screen.blit(bet_label, (60, 440))
-
-    def draw_small_button(self, rect: pygame.Rect, text: str, enabled: bool) -> None:
-        mouse_pos = pygame.mouse.get_pos()
-        hovered = rect.collidepoint(mouse_pos)
-
-        if not enabled:
-            color = BUTTON_DISABLED_COLOR
-        elif hovered:
-            color = SMALL_BUTTON_HOVER_COLOR
-        else:
-            color = SMALL_BUTTON_COLOR
-
-        pygame.draw.rect(self.screen, color, rect, border_radius=10)
-
-        text_surface = self.button_font.render(text, True, TEXT_COLOR)
-        self.screen.blit(
-            text_surface,
-            (
-                rect.x + rect.width // 2 - text_surface.get_width() // 2,
-                rect.y + rect.height // 2 - text_surface.get_height() // 2,
-            ),
-        )
+        surface.blit(temp_surface, (rect.x, rect.y))
 
     def draw_spin_button(self) -> None:
-        mouse_pos = pygame.mouse.get_pos()
-        hovered = self.spin_button_rect.collidepoint(mouse_pos)
+        mouse_pos = self.get_canvas_mouse_pos()
+        hovered = mouse_pos is not None and self.spin_button_rect.collidepoint(
+            mouse_pos
+        )
         enabled = not self.is_spinning and can_spin(self.state)
 
         if not enabled:
@@ -1518,11 +1585,16 @@ class SlotUI:
         else:
             color = BUTTON_COLOR
 
-        pygame.draw.rect(self.screen, color, self.spin_button_rect, border_radius=14)
+        self.draw_transparent_rect(
+            self.canvas,
+            color,
+            self.spin_button_rect,
+            border_radius=0,
+        )
 
         button_text = "SKIP" if self.has_skippable_animation() else "SPIN"
-        text_surface = self.button_font.render(button_text, True, TEXT_COLOR)
-        self.screen.blit(
+        text_surface = self.button_font.render(button_text, True, GOLD_COLOR)
+        self.canvas.blit(
             text_surface,
             (
                 self.spin_button_rect.x
@@ -1534,58 +1606,26 @@ class SlotUI:
             ),
         )
 
-    def draw_bottom_panel(self) -> None:
-        panel_rect = pygame.Rect(60, 560, 880, 100)
-        pygame.draw.rect(self.screen, PANEL_COLOR, panel_rect, border_radius=12)
-
-        row_1 = (
-            f"Linien: {self.last_line_win}   "
-            f"Scatter: {self.last_scatter_win} (x{self.last_scatter_count})   "
-            f"Yin-Yang: {self.last_yin_yang_win} (x{self.last_yin_yang_count})"
-            f"Instant: {self.last_instant_win}   "
-        )
-        row_2 = (
-            f"Neue Freispiele: {self.last_awarded_free_spins}   "
-            f"Status: {self.status_text}"
-        )
-
-        row_1_surface = self.small_font.render(row_1, True, TEXT_COLOR)
-
-        status_color = TEXT_COLOR
-        if self.last_total_win > 0:
-            status_color = WIN_COLOR
-        if self.last_yin_yang_win > 0 or self.last_awarded_free_spins > 0:
-            status_color = FEATURE_COLOR
-
-        row_2_surface = self.small_font.render(row_2, True, status_color)
-
-        self.screen.blit(row_1_surface, (80, 585))
-        self.screen.blit(row_2_surface, (80, 620))
-
-        info_text = self.info_messages[self.info_message_index]
-        info_surface = self.small_font.render(info_text, True, ACCENT_COLOR)
-        self.screen.blit(info_surface, (80, 640))
-
     def draw_overlay(self) -> None:
         current_time = pygame.time.get_ticks()
 
         if not self.overlay_text or current_time > self.overlay_end_time:
             return
 
-        overlay_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay_surface = pygame.Surface((BASE_WIDTH, BASE_HEIGHT), pygame.SRCALPHA)
         overlay_surface.fill((0, 0, 0, 110))
-        self.screen.blit(overlay_surface, (0, 0))
+        self.canvas.blit(overlay_surface, (0, 0))
 
         box_rect = pygame.Rect(180, 260, 640, 140)
-        pygame.draw.rect(self.screen, (25, 25, 35), box_rect, border_radius=18)
+        pygame.draw.rect(self.canvas, (25, 25, 35), box_rect, border_radius=18)
         pygame.draw.rect(
-            self.screen, self.overlay_color, box_rect, width=4, border_radius=18
+            self.canvas, self.overlay_color, box_rect, width=4, border_radius=18
         )
 
         text_surface = self.title_font.render(
             self.overlay_text, True, self.overlay_color
         )
-        self.screen.blit(
+        self.canvas.blit(
             text_surface,
             (
                 box_rect.x + box_rect.width // 2 - text_surface.get_width() // 2,
@@ -1597,7 +1637,7 @@ class SlotUI:
             subtext_surface = self.label_font.render(
                 self.overlay_subtext, True, TEXT_COLOR
             )
-            self.screen.blit(
+            self.canvas.blit(
                 subtext_surface,
                 (
                     box_rect.x + box_rect.width // 2 - subtext_surface.get_width() // 2,
@@ -1613,20 +1653,20 @@ class SlotUI:
         ):
             return
 
-        overlay_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay_surface = pygame.Surface((BASE_WIDTH, BASE_HEIGHT), pygame.SRCALPHA)
         overlay_surface.fill((0, 0, 0, 180))
-        self.screen.blit(overlay_surface, (0, 0))
+        self.canvas.blit(overlay_surface, (0, 0))
 
         board_rect = pygame.Rect(120, 100, 760, 520)
-        pygame.draw.rect(self.screen, (28, 24, 40), board_rect, border_radius=18)
+        pygame.draw.rect(self.canvas, (28, 24, 40), board_rect, border_radius=18)
         pygame.draw.rect(
-            self.screen, (210, 160, 255), board_rect, width=4, border_radius=18
+            self.canvas, (210, 160, 255), board_rect, width=4, border_radius=18
         )
 
         title_surface = self.title_font.render(
             "YIN-YANG FEATURE", True, (220, 180, 255)
         )
-        self.screen.blit(
+        self.canvas.blit(
             title_surface,
             (board_rect.centerx - title_surface.get_width() // 2, 120),
         )
@@ -1638,7 +1678,7 @@ class SlotUI:
             phase_text = "Feature complete"
 
         info_surface = self.label_font.render(phase_text, True, TEXT_COLOR)
-        self.screen.blit(
+        self.canvas.blit(
             info_surface,
             (board_rect.centerx - info_surface.get_width() // 2, 165),
         )
@@ -1676,13 +1716,13 @@ class SlotUI:
                 label = str(value)
 
             col_rect = pygame.Rect(x, y, feature_cell_w, 36)
-            pygame.draw.rect(self.screen, fill_color, col_rect, border_radius=10)
+            pygame.draw.rect(self.canvas, fill_color, col_rect, border_radius=10)
             pygame.draw.rect(
-                self.screen, border_color, col_rect, width=2, border_radius=10
+                self.canvas, border_color, col_rect, width=2, border_radius=10
             )
 
             value_surface = self.small_font.render(label, True, TEXT_COLOR)
-            self.screen.blit(
+            self.canvas.blit(
                 value_surface,
                 (
                     x + feature_cell_w // 2 - value_surface.get_width() // 2,
@@ -1730,9 +1770,9 @@ class SlotUI:
                     else:
                         border_color = (235, 235, 250)
 
-                pygame.draw.rect(self.screen, fill_color, cell_rect, border_radius=12)
+                pygame.draw.rect(self.canvas, fill_color, cell_rect, border_radius=12)
                 pygame.draw.rect(
-                    self.screen, border_color, cell_rect, width=3, border_radius=12
+                    self.canvas, border_color, cell_rect, width=3, border_radius=12
                 )
 
                 if value is not None and is_completed_column:
@@ -1744,7 +1784,7 @@ class SlotUI:
                         x + 4, y + 4, feature_cell_w - 8, feature_cell_h - 8
                     )
                     pygame.draw.rect(
-                        self.screen,
+                        self.canvas,
                         highlight_color,
                         inner_highlight_rect,
                         width=2,
@@ -1764,7 +1804,7 @@ class SlotUI:
                         else None
                     )
                     if image:
-                        self.screen.blit(
+                        self.canvas.blit(
                             image,
                             (
                                 x + feature_cell_w // 2 - image.get_width() // 2,
@@ -1780,7 +1820,7 @@ class SlotUI:
                             spin_surface = self.small_font.render(
                                 display_text, True, (230, 230, 240)
                             )
-                            self.screen.blit(
+                            self.canvas.blit(
                                 spin_surface,
                                 (
                                     x
@@ -1798,14 +1838,14 @@ class SlotUI:
                         str(value), True, (30, 20, 40)
                     )
 
-                    self.screen.blit(
+                    self.canvas.blit(
                         yin_surface,
                         (
                             x + feature_cell_w // 2 - yin_surface.get_width() // 2,
                             y + 10,
                         ),
                     )
-                    self.screen.blit(
+                    self.canvas.blit(
                         value_surface,
                         (
                             x + feature_cell_w // 2 - value_surface.get_width() // 2,
@@ -1833,14 +1873,14 @@ class SlotUI:
             summary_1_surface = self.label_font.render(line_1, True, (240, 230, 255))
             summary_2_surface = self.title_font.render(line_2, True, (255, 220, 120))
 
-            self.screen.blit(
+            self.canvas.blit(
                 summary_1_surface,
                 (
                     board_rect.centerx - summary_1_surface.get_width() // 2,
                     530,
                 ),
             )
-            self.screen.blit(
+            self.canvas.blit(
                 summary_2_surface,
                 (
                     board_rect.centerx - summary_2_surface.get_width() // 2,
@@ -1860,15 +1900,15 @@ class SlotUI:
             and current_time < self.feature_grand_popup_end_time
         ):
             popup_rect = pygame.Rect(250, 205, 500, 55)
-            pygame.draw.rect(self.screen, (255, 220, 100), popup_rect, border_radius=12)
+            pygame.draw.rect(self.canvas, (255, 220, 100), popup_rect, border_radius=12)
             pygame.draw.rect(
-                self.screen, (255, 255, 230), popup_rect, width=3, border_radius=12
+                self.canvas, (255, 255, 230), popup_rect, width=3, border_radius=12
             )
 
             popup_surface = self.label_font.render(
                 self.feature_grand_popup_text, True, (40, 30, 20)
             )
-            self.screen.blit(
+            self.canvas.blit(
                 popup_surface,
                 (
                     popup_rect.centerx - popup_surface.get_width() // 2,
@@ -1884,18 +1924,18 @@ class SlotUI:
         ):
             return
 
-        overlay_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay_surface = pygame.Surface((BASE_WIDTH, BASE_HEIGHT), pygame.SRCALPHA)
         overlay_surface.fill((0, 0, 0, 185))
-        self.screen.blit(overlay_surface, (0, 0))
+        self.canvas.blit(overlay_surface, (0, 0))
 
         board_rect = pygame.Rect(120, 100, 760, 520)
-        pygame.draw.rect(self.screen, (40, 28, 18), board_rect, border_radius=18)
+        pygame.draw.rect(self.canvas, (40, 28, 18), board_rect, border_radius=18)
         pygame.draw.rect(
-            self.screen, (255, 200, 120), board_rect, width=4, border_radius=18
+            self.canvas, (255, 200, 120), board_rect, width=4, border_radius=18
         )
 
         title_surface = self.title_font.render("BULL FEATURE", True, (255, 215, 140))
-        self.screen.blit(
+        self.canvas.blit(
             title_surface,
             (board_rect.centerx - title_surface.get_width() // 2, 120),
         )
@@ -1909,7 +1949,7 @@ class SlotUI:
             phase_text = "Bull Feature complete"
 
         info_surface = self.label_font.render(phase_text, True, TEXT_COLOR)
-        self.screen.blit(
+        self.canvas.blit(
             info_surface,
             (board_rect.centerx - info_surface.get_width() // 2, 165),
         )
@@ -1948,9 +1988,9 @@ class SlotUI:
                     fill_color = (72, 72, 82)
                     border_color = (135, 135, 155)
 
-                pygame.draw.rect(self.screen, fill_color, cell_rect, border_radius=12)
+                pygame.draw.rect(self.canvas, fill_color, cell_rect, border_radius=12)
                 pygame.draw.rect(
-                    self.screen, border_color, cell_rect, width=3, border_radius=12
+                    self.canvas, border_color, cell_rect, width=3, border_radius=12
                 )
 
                 if multiplier > 0:
@@ -1959,14 +1999,14 @@ class SlotUI:
                         f"x{multiplier}", True, (35, 20, 20)
                     )
 
-                    self.screen.blit(
+                    self.canvas.blit(
                         bull_surface,
                         (
                             x + feature_cell_w // 2 - bull_surface.get_width() // 2,
                             y + 10,
                         ),
                     )
-                    self.screen.blit(
+                    self.canvas.blit(
                         multi_surface,
                         (
                             x + feature_cell_w // 2 - multi_surface.get_width() // 2,
@@ -1992,7 +2032,7 @@ class SlotUI:
                             else None
                         )
                         if image:
-                            self.screen.blit(
+                            self.canvas.blit(
                                 image,
                                 (
                                     x + feature_cell_w // 2 - image.get_width() // 2,
@@ -2003,7 +2043,7 @@ class SlotUI:
                             symbol_surface = self.small_font.render(
                                 display_symbol.display, True, (235, 235, 245)
                             )
-                            self.screen.blit(
+                            self.canvas.blit(
                                 symbol_surface,
                                 (
                                     x
@@ -2019,7 +2059,7 @@ class SlotUI:
         collected_surface = self.label_font.render(
             collected_text, True, (245, 230, 210)
         )
-        self.screen.blit(
+        self.canvas.blit(
             collected_surface,
             (board_rect.centerx - collected_surface.get_width() // 2, 510),
         )
@@ -2034,7 +2074,7 @@ class SlotUI:
             True,
             (255, 220, 120),
         )
-        self.screen.blit(
+        self.canvas.blit(
             total_surface,
             (board_rect.centerx - total_surface.get_width() // 2, 550),
         )
@@ -2043,16 +2083,19 @@ class SlotUI:
             self.draw_bull_feature_continue_button("CLOSE FEATURE")
 
     def draw_feature_continue_button(self, text: str) -> None:
-        mouse_pos = pygame.mouse.get_pos()
-        hovered = self.feature_continue_button_rect.collidepoint(mouse_pos)
+        mouse_pos = self.get_canvas_mouse_pos()
+        hovered = (
+            mouse_pos is not None
+            and self.feature_continue_button_rect.collidepoint(mouse_pos)
+        )
 
         color = (140, 90, 180) if not hovered else (170, 110, 210)
 
         pygame.draw.rect(
-            self.screen, color, self.feature_continue_button_rect, border_radius=12
+            self.canvas, color, self.feature_continue_button_rect, border_radius=12
         )
         pygame.draw.rect(
-            self.screen,
+            self.canvas,
             (240, 230, 255),
             self.feature_continue_button_rect,
             width=3,
@@ -2060,7 +2103,7 @@ class SlotUI:
         )
 
         text_surface = self.label_font.render(text, True, TEXT_COLOR)
-        self.screen.blit(
+        self.canvas.blit(
             text_surface,
             (
                 self.feature_continue_button_rect.x
@@ -2073,16 +2116,19 @@ class SlotUI:
         )
 
     def draw_bull_feature_continue_button(self, text: str) -> None:
-        mouse_pos = pygame.mouse.get_pos()
-        hovered = self.bull_feature_continue_button_rect.collidepoint(mouse_pos)
+        mouse_pos = self.get_canvas_mouse_pos()
+        hovered = (
+            mouse_pos is not None
+            and self.bull_feature_continue_button_rect.collidepoint(mouse_pos)
+        )
 
         color = (180, 120, 70) if not hovered else (210, 145, 90)
 
         pygame.draw.rect(
-            self.screen, color, self.bull_feature_continue_button_rect, border_radius=12
+            self.canvas, color, self.bull_feature_continue_button_rect, border_radius=12
         )
         pygame.draw.rect(
-            self.screen,
+            self.canvas,
             (255, 235, 200),
             self.bull_feature_continue_button_rect,
             width=3,
@@ -2090,7 +2136,7 @@ class SlotUI:
         )
 
         text_surface = self.label_font.render(text, True, TEXT_COLOR)
-        self.screen.blit(
+        self.canvas.blit(
             text_surface,
             (
                 self.bull_feature_continue_button_rect.x
@@ -2102,10 +2148,14 @@ class SlotUI:
             ),
         )
 
-    def draw_help_text(self) -> None:
-        help_text = "SPACE = Spin | F = Freispiele | Y = Yin-Yang | I = Instant Win | Pfeil hoch/runter = Einsatz | Maus: Buttons | ESC = Beenden"
+    def draw_info_text(self) -> None:
+        help_text = "SPACE = Spin | F = Freispiele | Y = Yin-Yang | I = Instant Win | Pfeil hoch/runter = Einsatz"
         help_surface = self.small_font.render(help_text, True, TEXT_COLOR)
-        self.screen.blit(
+        self.canvas.blit(
             help_surface,
-            (WINDOW_WIDTH // 2 - help_surface.get_width() // 2, 675),
+            (205, 875),
         )
+
+        info_text = self.info_messages[self.info_message_index]
+        info_surface = self.small_font.render(info_text, True, TEXT_COLOR)
+        self.canvas.blit(info_surface, (1000, 875))
