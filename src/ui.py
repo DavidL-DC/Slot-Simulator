@@ -1680,7 +1680,7 @@ class SlotUI:
             ),
         )
 
-    def draw_small_button(self, rect: pygame.Rect, text: str, enabled: bool) -> None:
+    def draw_small_button(self, rect: pygame.Rect, text: str, enabled: bool, border_radius:int =0) -> None:
         mouse_pos = self.get_canvas_mouse_pos()
         hovered = mouse_pos is not None and rect.collidepoint(mouse_pos)
 
@@ -1747,7 +1747,8 @@ class SlotUI:
             label = (
                 f"{value:.2f}" if self.selection_popup_type == "denom" else str(value)
             )
-            self.draw_small_button(rect, label, enabled=True)
+            self.draw_small_button(rect, label, enabled=True, border_radius=5)
+            pygame.draw.rect(self.canvas, ACCENT_COLOR, rect, width=4, border_radius=5)
 
     def draw_overlay(self) -> None:
         current_time = pygame.time.get_ticks()
