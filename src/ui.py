@@ -9,6 +9,8 @@ from game import (
     can_spin,
     consume_free_spin,
     is_free_spin,
+    set_denom,
+    set_credits_bet,
 )
 from slot_machine import (
     evaluate_total_win,
@@ -215,6 +217,13 @@ class SlotUI:
         self.info_message_start_time = 0
         self.info_message_duration_ms = 2500
 
+        self.credits_button_rect = pygame.Rect(17, 795, 113, 87)
+        self.denom_button_rect = pygame.Rect(1467, 792, 113, 87)
+
+        self.selection_popup_open = False
+        self.selection_popup_type = None  # "denom" oder "credits"
+        self.selection_popup_buttons = []
+
     def run(self) -> None:
         while self.running:
             self.handle_events()
@@ -290,6 +299,34 @@ class SlotUI:
                 if mouse_pos is None:
                     return
 
+                if self.selection_popup_open:
+                    for rect, value in self.selection_popup_buttons:
+                        if rect.collidepoint(mouse_pos):
+                            if self.selection_popup_type == "denom":
+                                set_denom(self.state, value)
+
+                            elif self.selection_popup_type == "credits":
+                                set_credits_bet(self.state, value)
+
+                            self.refresh_info_messages()
+                            self.close_selection_popup()
+                            return
+
+                    self.close_selection_popup()
+                    return
+
+                if self.denom_button_rect.collidepoint(mouse_pos):
+                    if not self.can_change_bet_settings():
+                        return
+                    self.open_selection_popup("denom")
+                    return
+
+                if self.credits_button_rect.collidepoint(mouse_pos):
+                    if not self.can_change_bet_settings():
+                        return
+                    self.open_selection_popup("credits")
+                    return
+
                 if (
                     self.feature_mode
                     and self.feature_continue_button_rect.collidepoint(mouse_pos)
@@ -345,6 +382,9 @@ class SlotUI:
                 self.windowed_size,
                 pygame.RESIZABLE,
             )
+
+    def can_change_bet_settings(self) -> bool:
+        return not self.is_spinning and not is_free_spin(self.state)
 
     def has_skippable_animation(self) -> bool:
         if self.is_spinning:
@@ -576,6 +616,38 @@ class SlotUI:
 
         self.screen.fill((0, 0, 0))
         self.screen.blit(scaled_canvas, (x, y))
+
+    def open_selection_popup(self, popup_type: str) -> None:
+        self.selection_popup_open = True
+        self.selection_popup_type = popup_type
+        self.selection_popup_buttons = []
+
+        if popup_type == "denom":
+            values = [0.01, 0.02, 0.05, 0.10, 1.00]
+        elif popup_type == "credits":
+            values = [50, 100, 150, 250, 500]
+        else:
+            return
+
+        button_w = 130
+        button_h = 50
+        gap = 14
+
+        start_x = BASE_WIDTH // 2 - (
+            (button_w * len(values) + gap * (len(values) - 1)) // 2
+        )
+        y = BASE_HEIGHT // 2
+
+        for index, value in enumerate(values):
+            rect = pygame.Rect(
+                start_x + index * (button_w + gap), y, button_w, button_h
+            )
+            self.selection_popup_buttons.append((rect, value))
+
+    def close_selection_popup(self) -> None:
+        self.selection_popup_open = False
+        self.selection_popup_type = None
+        self.selection_popup_buttons = []
 
     def get_active_winning_positions(self) -> list[tuple[int, int]]:
         if not self.last_winning_line_results:
@@ -1360,6 +1432,8 @@ class SlotUI:
         self.draw_grid()
         self.draw_bottom_panel()
         self.draw_spin_button()
+        self.draw_bet_selection_buttons()
+        self.draw_selection_popup()
         self.draw_line_win_text()
         self.draw_overlay()
         self.draw_yin_yang_feature_board()
@@ -1605,6 +1679,75 @@ class SlotUI:
                 - text_surface.get_height() // 2,
             ),
         )
+
+    def draw_small_button(self, rect: pygame.Rect, text: str, enabled: bool) -> None:
+        mouse_pos = self.get_canvas_mouse_pos()
+        hovered = mouse_pos is not None and rect.collidepoint(mouse_pos)
+
+        if not enabled:
+            color = BUTTON_DISABLED_COLOR
+        elif hovered:
+            color = BUTTON_HOVER_COLOR
+        else:
+            color = BUTTON_COLOR
+
+        self.draw_transparent_rect(
+            self.canvas,
+            color,
+            rect,
+            border_radius=0,
+        )
+
+        text_surface = self.button_font.render(text, True, TEXT_COLOR)
+        self.canvas.blit(
+            text_surface,
+            (
+                rect.x + rect.width // 2 - text_surface.get_width() // 2,
+                rect.y + rect.height // 2 - text_surface.get_height() // 2,
+            ),
+        )
+
+    def draw_bet_selection_buttons(self) -> None:
+        self.draw_small_button(
+            self.denom_button_rect,
+            f"Denom {self.state.denom:.2f}",
+            enabled=not self.is_spinning and not is_free_spin(self.state),
+        )
+
+        self.draw_small_button(
+            self.credits_button_rect,
+            f"Credits {self.state.credits_bet}",
+            enabled=not self.is_spinning and not is_free_spin(self.state),
+        )
+
+    def draw_selection_popup(self) -> None:
+        if not self.selection_popup_open:
+            return
+
+        overlay = pygame.Surface((BASE_WIDTH, BASE_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 150))
+        self.canvas.blit(overlay, (0, 0))
+
+        box_rect = pygame.Rect(BASE_WIDTH // 2 - 420, BASE_HEIGHT // 2 - 120, 840, 240)
+        pygame.draw.rect(self.canvas, (30, 30, 45), box_rect, border_radius=20)
+        pygame.draw.rect(self.canvas, ACCENT_COLOR, box_rect, width=4, border_radius=20)
+
+        title = (
+            "Denom auswählen"
+            if self.selection_popup_type == "denom"
+            else "Credits auswählen"
+        )
+        title_surface = self.label_font.render(title, True, TEXT_COLOR)
+        self.canvas.blit(
+            title_surface,
+            (box_rect.centerx - title_surface.get_width() // 2, box_rect.y + 35),
+        )
+
+        for rect, value in self.selection_popup_buttons:
+            label = (
+                f"{value:.2f}" if self.selection_popup_type == "denom" else str(value)
+            )
+            self.draw_small_button(rect, label, enabled=True)
 
     def draw_overlay(self) -> None:
         current_time = pygame.time.get_ticks()
