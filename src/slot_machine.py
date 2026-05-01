@@ -69,6 +69,34 @@ def spin_reels_with_stops(credits_bet: int = 100) -> ReelSpinResult:
     )
 
 
+def spin_free_spins_with_stops() -> ReelSpinResult:
+    strips: list[list[Symbol]] = []
+    stop_indices: list[int] = []
+    columns: list[list[Symbol]] = []
+
+    for reel_index in range(REELS):
+        strip = FREE_SPIN_REEL_STRIPS[reel_index]
+        stop_index = random.randint(0, len(strip) - 1)
+
+        strips.append(strip)
+        stop_indices.append(stop_index)
+        columns.append(get_visible_symbols(strip, stop_index, ROWS))
+
+    grid: list[list[Symbol]] = []
+
+    for row_index in range(ROWS):
+        row: list[Symbol] = []
+        for reel_index in range(REELS):
+            row.append(columns[reel_index][row_index])
+        grid.append(row)
+
+    return ReelSpinResult(
+        grid=grid,
+        strips=strips,
+        stop_indices=stop_indices,
+    )
+
+
 def get_visible_symbols(
     strip: list[Symbol], stop_index: int, window_size: int
 ) -> list[Symbol]:

@@ -21,6 +21,7 @@ from slot_machine import (
     spin_reels_free_spins,
     count_bulls,
     spin_reels_with_stops,
+    spin_free_spins_with_stops,
 )
 from symbols import ALL_SYMBOLS, Symbol, COLLECTOR, CREDIT
 
@@ -28,6 +29,8 @@ from bull_feature import play_bull_feature
 from config import PAYLINES
 
 from pathlib import Path
+
+import math
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -80,6 +83,9 @@ class SlotUI:
 
         self.background_image = pygame.image.load(
             BASE_DIR / "assets" / "backgrounds" / "base.png"
+        ).convert()
+        self.free_spin_background_image = pygame.image.load(
+            BASE_DIR / "assets" / "backgrounds" / "free_spins.png"
         ).convert()
 
         self.title_font = pygame.font.SysFont("arial", 36, bold=True)
@@ -281,13 +287,24 @@ class SlotUI:
         print(canvas_x, canvas_y)
         return int(canvas_x), int(canvas_y)
 
+    def is_window_maximized(self) -> bool:
+        window_w, window_h = self.screen.get_size()
+        desktop_w, desktop_h = pygame.display.get_desktop_sizes()[0]
+
+        # kleiner Toleranzbereich wegen Taskleiste
+        return abs(window_w - desktop_w) < 10 and window_h >= desktop_h - 80
+
     def handle_events(self) -> None:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
 
             if event.type == pygame.VIDEORESIZE and not self.fullscreen:
-                self.resize_window_16_9(event.w, event.h)
+                if event.type == pygame.VIDEORESIZE and not self.fullscreen:
+                    if not self.is_window_maximized():
+                        self.resize_window_16_9(event.w, event.h)
+                    else:
+                        self.windowed_size = (event.w, event.h)
 
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
@@ -1135,17 +1152,22 @@ class SlotUI:
 
         self.pending_free_spin_bull_count = 0
 
-        """ if free_spin_mode:
+        if free_spin_mode:
             consume_free_spin(self.state)
             self.status_text = "Freispiel läuft..."
-            self.final_grid = spin_reels_free_spins()
+
+            spin_result = spin_free_spins_with_stops()
+            self.final_grid = spin_result.grid
+            self.reel_animation_strips = spin_result.strips
+
             self.pending_free_spin_bull_count += count_bulls(self.final_grid)
-        else: """
-        apply_bet(self.state)
-        self.status_text = "Walzen drehen..."
-        spin_result = spin_reels_with_stops(self.state.credits_bet)
-        self.final_grid = spin_result.grid
-        self.reel_animation_strips = spin_result.strips
+        else:
+            apply_bet(self.state)
+            self.status_text = "Walzen drehen..."
+
+            spin_result = spin_reels_with_stops(self.state.credits_bet)
+            self.final_grid = spin_result.grid
+            self.reel_animation_strips = spin_result.strips
 
         win_result = evaluate_total_win(
             self.final_grid,
@@ -1478,6 +1500,7 @@ class SlotUI:
         self.draw_background()
         self.draw_grid()
         self.draw_bottom_panel()
+        self.draw_free_spin_status()
         self.draw_spin_button()
         self.draw_bet_selection_buttons()
         self.draw_selection_popup()
@@ -1488,14 +1511,20 @@ class SlotUI:
         self.draw_info_text()
 
     def draw_background(self) -> None:
+        background = (
+            self.free_spin_background_image
+            if is_free_spin(self.state) or self.pending_free_spin_mode
+            else self.background_image
+        )
+
         scaled_background = pygame.transform.smoothscale(
-            self.background_image,
+            background,
             (BASE_WIDTH, BASE_HEIGHT),
         )
         self.canvas.blit(scaled_background, (0, 0))
 
     def draw_grid(self) -> None:
-        if is_free_spin(self.state) or self.pending_free_spin_mode:
+        if False:
             highlight_rect = pygame.Rect(
                 GRID_X - 14,
                 GRID_Y - 14,
@@ -1608,15 +1637,42 @@ class SlotUI:
                             ),
                         )
                 else:
+                    is_bull_highlight = (
+                        (is_free_spin(self.state) or self.pending_free_spin_mode)
+                        and symbol.name == "bull"
+                        and not self.is_spinning
+                    )
+
+                    pulse_scale = 1.0
+
+                    if is_bull_highlight:
+                        t = pygame.time.get_ticks() / 200  # Geschwindigkeit
+                        pulse_scale = 1.0 + 0.08 * (1 + math.sin(t))  # 1.0 → 1.16 → 1.0
+
                     image = self.symbol_images.get(symbol.name)
+
                     if image:
-                        self.canvas.blit(
-                            image,
-                            (
-                                x + CELL_WIDTH // 2 - image.get_width() // 2,
-                                y + CELL_HEIGHT // 2 - image.get_height() // 2,
-                            ),
-                        )
+                        if is_bull_highlight:
+                            scaled_w = int(image.get_width() * pulse_scale)
+                            scaled_h = int(image.get_height() * pulse_scale)
+
+                            scaled_image = pygame.transform.smoothscale(
+                                image,
+                                (scaled_w, scaled_h),
+                            )
+
+                            draw_x = x + CELL_WIDTH // 2 - scaled_w // 2
+                            draw_y = y + CELL_HEIGHT // 2 - scaled_h // 2
+
+                            self.canvas.blit(scaled_image, (draw_x, draw_y))
+                        else:
+                            self.canvas.blit(
+                                image,
+                                (
+                                    x + CELL_WIDTH // 2 - image.get_width() // 2,
+                                    y + CELL_HEIGHT // 2 - image.get_height() // 2,
+                                ),
+                            )
                     else:
                         symbol_surface = self.symbol_font.render(
                             symbol.display, True, (30, 30, 40)
@@ -1803,11 +1859,12 @@ class SlotUI:
             enabled=not self.is_spinning and not is_free_spin(self.state),
         )
 
-        self.draw_small_button(
-            self.credits_button_rect,
-            f"{self.state.credits_bet}",
-            enabled=not self.is_spinning and not is_free_spin(self.state),
-        )
+        if not is_free_spin(self.state):
+            self.draw_small_button(
+                self.credits_button_rect,
+                f"{self.state.credits_bet}",
+                enabled=not self.is_spinning and not is_free_spin(self.state),
+            )
 
     def draw_selection_popup(self) -> None:
         if not self.selection_popup_open:
@@ -1854,7 +1911,12 @@ class SlotUI:
         overlay_surface.fill((0, 0, 0, 110))
         self.canvas.blit(overlay_surface, (0, 0))
 
-        box_rect = pygame.Rect(180, 260, 640, 140)
+        box_rect = pygame.Rect(
+            BASE_WIDTH // 2 - 320,
+            BASE_HEIGHT // 2 - 70,
+            640,
+            140,
+        )
         pygame.draw.rect(self.canvas, (25, 25, 35), box_rect, border_radius=18)
         pygame.draw.rect(
             self.canvas, self.overlay_color, box_rect, width=4, border_radius=18
@@ -2153,6 +2215,26 @@ class SlotUI:
                     popup_rect.centery - popup_surface.get_height() // 2,
                 ),
             )
+
+    def draw_free_spin_status(self) -> None:
+        if not is_free_spin(self.state) and not self.pending_free_spin_mode:
+            return
+
+        spins_text = f"{self.state.free_spins_remaining}"
+        bulls_text = f"{self.state.collected_bulls}"
+
+        spins_surface = self.title_font.render(spins_text, True, TEXT_COLOR)
+        bulls_surface = self.title_font.render(bulls_text, True, TEXT_COLOR)
+
+        # Koordinaten an deine eingezeichneten Plätze anpassen
+        spins_x = 63
+        spins_y = 817
+
+        bulls_x = 63
+        bulls_y = 655
+
+        self.canvas.blit(spins_surface, (spins_x, spins_y))
+        self.canvas.blit(bulls_surface, (bulls_x, bulls_y))
 
     def draw_bull_feature_board(self) -> None:
         if (
