@@ -20,6 +20,7 @@ from slot_machine import (
     trigger_debug_yin_yang_feature,
     spin_reels_free_spins,
     count_bulls,
+    spin_reels_with_stops,
 )
 from symbols import ALL_SYMBOLS, Symbol, COLLECTOR, CREDIT
 
@@ -227,6 +228,13 @@ class SlotUI:
         self.selection_popup_open = False
         self.selection_popup_type = None  # "denom" oder "credits"
         self.selection_popup_buttons = []
+
+        self.reel_animation_strips = []
+        self.reel_animation_offsets = [0.0 for _ in range(GRID_COLS)]
+        self.reel_animation_start_offsets = [0.0 for _ in range(GRID_COLS)]
+        self.reel_animation_target_offsets = [0.0 for _ in range(GRID_COLS)]
+        self.reel_animation_start_times = [0 for _ in range(GRID_COLS)]
+        self.reel_animation_durations = [0 for _ in range(GRID_COLS)]
 
     def run(self) -> None:
         while self.running:
@@ -718,6 +726,9 @@ class SlotUI:
 
         return [[random.choice(pool) for _ in range(5)] for _ in range(3)]
 
+    def ease_out_cubic(self, t: float) -> float:
+        return 1 - pow(1 - t, 3)
+
     def update_animation(self) -> None:
         if not self.is_spinning:
             return
@@ -728,18 +739,26 @@ class SlotUI:
             if self.locked_reels[reel_index]:
                 continue
 
-            if current_time >= self.reel_stop_times[reel_index]:
+            elapsed = current_time - self.reel_animation_start_times[reel_index]
+            duration = self.reel_animation_durations[reel_index]
+            progress = min(1.0, elapsed / duration)
+
+            eased = self.ease_out_cubic(progress)
+
+            start_offset = self.reel_animation_start_offsets[reel_index]
+            target_offset = self.reel_animation_target_offsets[reel_index]
+
+            self.reel_animation_offsets[reel_index] = (
+                start_offset + (target_offset - start_offset) * eased
+            )
+
+            if progress >= 1.0:
                 self.locked_reels[reel_index] = True
 
                 for row_index in range(GRID_ROWS):
                     self.current_grid[row_index][reel_index] = self.final_grid[
                         row_index
                     ][reel_index]
-            else:
-                for row_index in range(GRID_ROWS):
-                    self.current_grid[row_index][reel_index] = random.choice(
-                        ALL_SYMBOLS
-                    )
 
         if all(self.locked_reels):
             self.finish_spin()
@@ -1116,18 +1135,23 @@ class SlotUI:
 
         self.pending_free_spin_bull_count = 0
 
-        if free_spin_mode:
+        """ if free_spin_mode:
             consume_free_spin(self.state)
             self.status_text = "Freispiel läuft..."
             self.final_grid = spin_reels_free_spins()
             self.pending_free_spin_bull_count += count_bulls(self.final_grid)
-        else:
-            apply_bet(self.state)
-            self.status_text = "Walzen drehen..."
-            self.final_grid = spin_reels(self.state.credits_bet)
+        else: """
+        apply_bet(self.state)
+        self.status_text = "Walzen drehen..."
+        spin_result = spin_reels_with_stops(self.state.credits_bet)
+        self.final_grid = spin_result.grid
+        self.reel_animation_strips = spin_result.strips
 
         win_result = evaluate_total_win(
-            self.final_grid, self.state.current_bet, free_spin_mode
+            self.final_grid,
+            self.state.current_bet,
+            self.state.credits_bet,
+            free_spin_mode,
         )
 
         self.pending_winning_line_results = [
@@ -1170,6 +1194,25 @@ class SlotUI:
             spin_start_time + base_delay + reel_index * reel_delay
             for reel_index in range(GRID_COLS)
         ]
+
+        symbol_step = CELL_HEIGHT + CELL_GAP_VERTICAL
+
+        for reel_index in range(GRID_COLS):
+            strip_len = len(self.reel_animation_strips[reel_index])
+            stop_index = spin_result.stop_indices[reel_index]
+
+            extra_loops = 3 + reel_index
+            target_symbol_steps = extra_loops * strip_len + (
+                (strip_len - stop_index) % strip_len
+            )
+
+            self.reel_animation_start_offsets[reel_index] = 0.0
+            self.reel_animation_target_offsets[reel_index] = (
+                target_symbol_steps * symbol_step
+            )
+            self.reel_animation_offsets[reel_index] = 0.0
+            self.reel_animation_start_times[reel_index] = spin_start_time
+            self.reel_animation_durations[reel_index] = 1800 + reel_index * 400
 
     def start_bull_feature(self) -> None:
         collected_bulls = self.state.collected_bulls
@@ -1483,8 +1526,16 @@ class SlotUI:
 
         winning_positions = self.get_active_winning_positions()
 
+        for col_index in range(GRID_COLS):
+            if self.is_spinning and not self.locked_reels[col_index]:
+                self.draw_spinning_reel(col_index)
+
         for row_index, row in enumerate(self.current_grid):
             for col_index, symbol in enumerate(row):
+
+                if self.is_spinning and not self.locked_reels[col_index]:
+                    continue
+
                 x = GRID_X + col_index * (CELL_WIDTH + CELL_GAP_HORIZONTAL)
                 y = GRID_Y + row_index * (CELL_HEIGHT + CELL_GAP_VERTICAL)
 
@@ -1577,6 +1628,65 @@ class SlotUI:
                                 y + CELL_HEIGHT // 2 - symbol_surface.get_height() // 2,
                             ),
                         )
+
+    def draw_spinning_reel(self, reel_index: int) -> None:
+        if not self.reel_animation_strips:
+            return
+
+        strip = self.reel_animation_strips[reel_index]
+        strip_len = len(strip)
+
+        symbol_step = CELL_HEIGHT + CELL_GAP_VERTICAL
+        offset = self.reel_animation_offsets[reel_index]
+
+        current_symbol_index = int(offset // symbol_step)
+        pixel_offset = offset % symbol_step
+
+        current_symbol_index = (-current_symbol_index) % strip_len
+
+        x = GRID_X + reel_index * (CELL_WIDTH + CELL_GAP_HORIZONTAL)
+
+        clip_rect = pygame.Rect(
+            x,
+            GRID_Y,
+            CELL_WIDTH,
+            GRID_ROWS * CELL_HEIGHT + (GRID_ROWS - 1) * CELL_GAP_VERTICAL,
+        )
+
+        old_clip = self.canvas.get_clip()
+        self.canvas.set_clip(clip_rect)
+
+        for draw_row in range(-1, GRID_ROWS + 1):
+            symbol_index = (current_symbol_index + draw_row) % strip_len
+            symbol = strip[symbol_index]
+
+            y = GRID_Y + draw_row * symbol_step + pixel_offset
+
+            image = self.symbol_images.get(symbol.name)
+
+            if image:
+                self.canvas.blit(
+                    image,
+                    (
+                        x + CELL_WIDTH // 2 - image.get_width() // 2,
+                        y + CELL_HEIGHT // 2 - image.get_height() // 2,
+                    ),
+                )
+            else:
+                symbol_surface = self.symbol_font.render(
+                    symbol.display,
+                    True,
+                    (30, 30, 40),
+                )
+                self.canvas.blit(
+                    symbol_surface,
+                    (
+                        x + CELL_WIDTH // 2 - symbol_surface.get_width() // 2,
+                        y + CELL_HEIGHT // 2 - symbol_surface.get_height() // 2,
+                    ),
+                )
+
+        self.canvas.set_clip(old_clip)
 
     def draw_bottom_panel(self) -> None:
         balance_surface = self.title_font.render(
