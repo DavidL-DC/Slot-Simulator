@@ -11,6 +11,8 @@ from game import (
     is_free_spin,
     set_denom,
     set_credits_bet,
+    can_set_credits,
+    can_set_denom,
 )
 from slot_machine import (
     evaluate_total_win,
@@ -35,12 +37,13 @@ ASPECT_RATIO = BASE_WIDTH / BASE_HEIGHT
 GRID_COLS = 5
 GRID_ROWS = 3
 
-CELL_WIDTH = 120
-CELL_HEIGHT = 120
-CELL_GAP = 10
+CELL_WIDTH = 211
+CELL_HEIGHT = 211
+CELL_GAP_HORIZONTAL = 40
+CELL_GAP_VERTICAL = 10
 
-GRID_X = 170
-GRID_Y = 160
+GRID_X = 192
+GRID_Y = 89
 
 BACKGROUND_COLOR = (20, 20, 30)
 PANEL_COLOR = (35, 35, 50)
@@ -50,7 +53,7 @@ GOLD_COLOR = (255, 204, 0)
 ACCENT_COLOR = (212, 175, 55)
 BUTTON_COLOR = (0, 0, 0, 0)
 BUTTON_HOVER_COLOR = (245, 245, 245, 50)
-BUTTON_DISABLED_COLOR = (90, 90, 90, 50)
+BUTTON_DISABLED_COLOR = (90, 90, 90, 100)
 SMALL_BUTTON_COLOR = (70, 120, 200)
 SMALL_BUTTON_HOVER_COLOR = (90, 140, 220)
 WIN_COLOR = (80, 180, 90)
@@ -83,6 +86,7 @@ class SlotUI:
         self.symbol_font = pygame.font.SysFont("arial", 28, bold=True)
         self.small_font = pygame.font.SysFont("arial", 20)
         self.button_font = pygame.font.SysFont("arial", 28, bold=True)
+        self.credit_font = pygame.font.SysFont("arial", 50, bold=True)
 
         self.state = state
 
@@ -590,7 +594,7 @@ class SlotUI:
             image = pygame.image.load(path).convert_alpha()
             images[name] = pygame.transform.smoothscale(
                 image,
-                (CELL_WIDTH - 18, CELL_HEIGHT - 18),
+                (CELL_WIDTH - 20, CELL_HEIGHT - 20),
             )
 
         return images
@@ -1452,8 +1456,8 @@ class SlotUI:
             highlight_rect = pygame.Rect(
                 GRID_X - 14,
                 GRID_Y - 14,
-                GRID_COLS * CELL_WIDTH + (GRID_COLS - 1) * CELL_GAP + 28,
-                GRID_ROWS * CELL_HEIGHT + (GRID_ROWS - 1) * CELL_GAP + 28,
+                GRID_COLS * CELL_WIDTH + (GRID_COLS - 1) * CELL_GAP_HORIZONTAL + 28,
+                GRID_ROWS * CELL_HEIGHT + (GRID_ROWS - 1) * CELL_GAP_VERTICAL + 28,
             )
 
             pygame.draw.rect(
@@ -1466,8 +1470,8 @@ class SlotUI:
             inner_highlight_rect = pygame.Rect(
                 GRID_X - 8,
                 GRID_Y - 8,
-                GRID_COLS * CELL_WIDTH + (GRID_COLS - 1) * CELL_GAP + 16,
-                GRID_ROWS * CELL_HEIGHT + (GRID_ROWS - 1) * CELL_GAP + 16,
+                GRID_COLS * CELL_WIDTH + (GRID_COLS - 1) * CELL_GAP_HORIZONTAL + 16,
+                GRID_ROWS * CELL_HEIGHT + (GRID_ROWS - 1) * CELL_GAP_VERTICAL + 16,
             )
 
             pygame.draw.rect(
@@ -1481,29 +1485,10 @@ class SlotUI:
 
         for row_index, row in enumerate(self.current_grid):
             for col_index, symbol in enumerate(row):
-                x = GRID_X + col_index * (CELL_WIDTH + CELL_GAP)
-                y = GRID_Y + row_index * (CELL_HEIGHT + CELL_GAP)
+                x = GRID_X + col_index * (CELL_WIDTH + CELL_GAP_HORIZONTAL)
+                y = GRID_Y + row_index * (CELL_HEIGHT + CELL_GAP_VERTICAL)
 
                 cell_rect = pygame.Rect(x, y, CELL_WIDTH, CELL_HEIGHT)
-
-                border_color = PANEL_COLOR
-                inner_color = CELL_COLOR
-
-                if symbol.is_scatter:
-                    inner_color = (245, 225, 140)
-                elif symbol.name == "yin_yang":
-                    inner_color = (210, 180, 245)
-                elif symbol.is_wild:
-                    inner_color = (245, 170, 170)
-                elif symbol.is_credit_value_symbol:
-                    inner_color = (140, 220, 170)
-                elif symbol.is_collector:
-                    inner_color = (255, 185, 120)
-
-                pygame.draw.rect(self.canvas, inner_color, cell_rect, border_radius=12)
-                pygame.draw.rect(
-                    self.canvas, border_color, cell_rect, width=3, border_radius=12
-                )
 
                 is_winning = (row_index, col_index) in winning_positions
 
@@ -1526,14 +1511,6 @@ class SlotUI:
                         border_radius=12,
                     )
 
-                if self.is_spinning and not self.locked_reels[col_index]:
-                    inner_rect = pygame.Rect(
-                        x + 8, y + 8, CELL_WIDTH - 16, CELL_HEIGHT - 16
-                    )
-                    pygame.draw.rect(
-                        self.canvas, (180, 190, 210), inner_rect, border_radius=10
-                    )
-
                 if symbol.is_credit_value_symbol:
                     grid_position = (row_index, col_index)
                     value_text = ""
@@ -1553,7 +1530,7 @@ class SlotUI:
                             image,
                             (
                                 x + CELL_WIDTH // 2 - image.get_width() // 2,
-                                y + 28,
+                                y + CELL_HEIGHT // 2 - image.get_height() // 2,
                             ),
                         )
                     else:
@@ -1569,14 +1546,14 @@ class SlotUI:
                         )
 
                     if value_text:
-                        value_surface = self.small_font.render(
-                            value_text, True, (30, 30, 40)
+                        value_surface = self.credit_font.render(
+                            value_text, True, GOLD_COLOR
                         )
                         self.canvas.blit(
                             value_surface,
                             (
                                 x + CELL_WIDTH // 2 - value_surface.get_width() // 2,
-                                y + 62,
+                                y + CELL_HEIGHT // 2 - value_surface.get_height() // 2,
                             ),
                         )
                 else:
@@ -1680,7 +1657,9 @@ class SlotUI:
             ),
         )
 
-    def draw_small_button(self, rect: pygame.Rect, text: str, enabled: bool, border_radius:int =0) -> None:
+    def draw_small_button(
+        self, rect: pygame.Rect, text: str, enabled: bool, border_radius: int = 0
+    ) -> None:
         mouse_pos = self.get_canvas_mouse_pos()
         hovered = mouse_pos is not None and rect.collidepoint(mouse_pos)
 
@@ -1698,7 +1677,7 @@ class SlotUI:
             border_radius=0,
         )
 
-        text_surface = self.button_font.render(text, True, TEXT_COLOR)
+        text_surface = self.title_font.render(text, True, TEXT_COLOR)
         self.canvas.blit(
             text_surface,
             (
@@ -1710,13 +1689,13 @@ class SlotUI:
     def draw_bet_selection_buttons(self) -> None:
         self.draw_small_button(
             self.denom_button_rect,
-            f"Denom {self.state.denom:.2f}",
+            f"{self.state.denom:.2f}",
             enabled=not self.is_spinning and not is_free_spin(self.state),
         )
 
         self.draw_small_button(
             self.credits_button_rect,
-            f"Credits {self.state.credits_bet}",
+            f"{self.state.credits_bet}",
             enabled=not self.is_spinning and not is_free_spin(self.state),
         )
 
@@ -1747,7 +1726,12 @@ class SlotUI:
             label = (
                 f"{value:.2f}" if self.selection_popup_type == "denom" else str(value)
             )
-            self.draw_small_button(rect, label, enabled=True, border_radius=5)
+            enabled = (
+                can_set_denom(self.state, value)
+                if self.selection_popup_type == "denom"
+                else can_set_credits(self.state, value)
+            )
+            self.draw_small_button(rect, label, enabled=enabled, border_radius=5)
             pygame.draw.rect(self.canvas, ACCENT_COLOR, rect, width=4, border_radius=5)
 
     def draw_overlay(self) -> None:

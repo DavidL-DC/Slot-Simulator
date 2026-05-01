@@ -40,16 +40,35 @@ def set_bet(state: GameState, new_bet: int) -> bool:
     return True
 
 
+def can_set_denom(self, denom: float) -> bool:
+    return any(
+        MIN_BET <= round(denom * credits, 2) <= self.balance
+        for credits in AVAILABLE_CREDITS
+    )
+
+
+def can_set_credits(self, credits: int) -> bool:
+    return any(
+        MIN_BET <= round(denom * credits, 2) <= self.balance
+        for denom in AVAILABLE_DENOMS
+    )
+
+
 def set_denom(state: GameState, new_denom: float) -> bool:
     if new_denom not in AVAILABLE_DENOMS:
         return False
 
-    new_bet = round(new_denom * state.credits_bet, 2)
+    valid_credits = [
+        credits
+        for credits in sorted(AVAILABLE_CREDITS, reverse=True)
+        if MIN_BET <= round(new_denom * credits, 2) <= state.balance
+    ]
 
-    if new_bet < MIN_BET or new_bet > state.balance:
+    if not valid_credits:
         return False
 
     state.denom = new_denom
+    state.credits_bet = valid_credits[0]
     recalculate_bet(state)
     return True
 
@@ -58,12 +77,17 @@ def set_credits_bet(state: GameState, new_credits_bet: int) -> bool:
     if new_credits_bet not in AVAILABLE_CREDITS:
         return False
 
-    new_bet = round(state.denom * new_credits_bet, 2)
+    valid_denoms = [
+        denom
+        for denom in sorted(AVAILABLE_DENOMS, reverse=True)
+        if MIN_BET <= round(denom * new_credits_bet, 2) <= state.balance
+    ]
 
-    if new_bet < MIN_BET or new_bet > state.balance:
+    if not valid_denoms:
         return False
 
     state.credits_bet = new_credits_bet
+    state.denom = valid_denoms[0]
     recalculate_bet(state)
     return True
 

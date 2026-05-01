@@ -28,8 +28,8 @@
      inkscape:document-units="px"
      showborder="false"
      inkscape:zoom="0.84074996"
-     inkscape:cx="286.64884"
-     inkscape:cy="596.49125"
+     inkscape:cx="287.83825"
+     inkscape:cy="596.49126"
      inkscape:window-width="2560"
      inkscape:window-height="1369"
      inkscape:window-x="2552"
@@ -44,29 +44,29 @@
      id="layer1">
     <text
        xml:space="preserve"
-       style="font-size:75.8998px;line-height:1.02;font-family:Quicksand;-inkscape-font-specification:Quicksand;text-align:center;letter-spacing:0.509951px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#000000;fill-rule:evenodd;stroke:#000000;stroke-width:7.27604164;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none"
-       x="132.34976"
-       y="188.53255"
+       style="font-size:102.483px;line-height:1.02;font-family:Quicksand;-inkscape-font-specification:Quicksand;text-align:center;letter-spacing:0.688555px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#000000;fill-rule:evenodd;stroke:#000000;stroke-width:7.27604;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none"
+       x="132.09413"
+       y="208.50854"
        id="text7"
-       transform="scale(1.0019966,0.99800736)"><tspan
+       transform="scale(1.0047997,0.99522327)"><tspan
          sodipodi:role="line"
          id="tspan7"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:263.541px;font-family:'Javanese Text';-inkscape-font-specification:'Javanese Text';stroke-width:7.27604164;fill:#000000;stroke:#000000;stroke-dasharray:none"
-         x="132.60474"
-         y="188.53255"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:355.843px;font-family:'Javanese Text';-inkscape-font-specification:'Javanese Text';fill:#000000;stroke:#000000;stroke-width:7.27604;stroke-dasharray:none"
+         x="132.4384"
+         y="208.50854"
          transform="translate(98.683043,43.807427)">9</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:75.8998px;line-height:1.02;font-family:Quicksand;-inkscape-font-specification:Quicksand;text-align:center;letter-spacing:0.509951px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#00d400;fill-rule:evenodd;stroke:#ffcc00;stroke-width:2.64582;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none"
-       x="132.34976"
-       y="188.53255"
+       style="font-size:102.483px;line-height:1.02;font-family:Quicksand;-inkscape-font-specification:Quicksand;text-align:center;letter-spacing:0.688555px;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#00d400;fill-rule:evenodd;stroke:#ffcc00;stroke-width:2.64582;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none"
+       x="132.09413"
+       y="208.50854"
        id="text6"
-       transform="scale(1.0019966,0.99800736)"><tspan
+       transform="scale(1.0047997,0.99522327)"><tspan
          sodipodi:role="line"
          id="tspan6"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:263.541px;font-family:'Javanese Text';-inkscape-font-specification:'Javanese Text';stroke-width:2.64582;fill:#00d400;stroke:#ffcc00"
-         x="132.60474"
-         y="188.53255"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:355.843px;font-family:'Javanese Text';-inkscape-font-specification:'Javanese Text';fill:#00d400;stroke:#ffcc00;stroke-width:2.64582"
+         x="132.4384"
+         y="208.50854"
          transform="translate(98.683043,43.807427)">9</tspan></text>
   </g>
 </svg>
