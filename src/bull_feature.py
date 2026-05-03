@@ -246,13 +246,24 @@ def evaluate_bull_feature_paylines(
 
         # SPECIAL: 5 Bulls auf einer Linie zahlen x75
         if all(symbol.name == "bull" for symbol in line_symbols):
-            final_win = round(line_bet * 75, 2)
+            base_win = line_bet * 75
+
+            used_line_multipliers = [value for value in line_multipliers if value > 0]
+
+            line_multiplier = 1
+            for value in used_line_multipliers:
+                line_multiplier *= value
+
+            line_multiplier = min(line_multiplier, 18)
+
+            final_win = round(base_win * line_multiplier, 2)
+
             total_win += final_win
             line_wins.append(
                 BullLineWin(
                     line_index=line_index,
                     win=final_win,
-                    multiplier_used=1,
+                    multiplier_used=line_multiplier,
                     matched_symbol_name="bull",
                     match_count=5,
                 )

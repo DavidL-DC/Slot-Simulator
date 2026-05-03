@@ -215,6 +215,9 @@ class SlotUI:
         self.bull_feature_bump_start_time = 0
         self.bull_feature_bump_duration_ms = 220
 
+        self.overlay_waiting_for_input = False
+        self.overlay_action: str | None = None
+
     def run(self) -> None:
         while self.running:
             self.handle_events()
@@ -379,17 +382,30 @@ class SlotUI:
             if self.feature_phase == "countup":
                 return True
 
-        if self.bull_feature_mode:
-            if self.bull_feature_phase == "drops":
-                return True
-            if self.bull_feature_fill_animating:
-                return True
-            if self.bull_feature_phase == "countup":
-                return True
+        if self.bull_feature_mode and self.bull_feature_phase in {
+            "drops",
+            "spinning",
+            "countup",
+        }:
+            return True
 
         return False
 
     def handle_skip_or_continue(self) -> None:
+        if self.overlay_text and self.overlay_waiting_for_input:
+            action = self.overlay_action
+            self.close_overlay()
+
+            if action == "start_free_spin_feature":
+                self.try_spin()
+            elif action == "start_bull_feature_final_spin":
+                self.start_bull_feature_final_spin()
+            elif action == "start_yin_yang_feature":
+                self.start_yin_yang_feature_playback(
+                    self.pending_yin_yang_feature_result
+                )
+            return
+
         if self.has_skippable_animation():
             self.skip_current_animation()
             return
@@ -410,10 +426,6 @@ class SlotUI:
                 self.start_bull_feature()
                 return
 
-            if self.bull_feature_phase == "ready_to_spin":
-                self.start_bull_feature_final_spin()
-                return
-
             if self.bull_feature_phase == "done":
                 self.close_bull_feature()
                 return
@@ -421,6 +433,13 @@ class SlotUI:
             return
 
         self.try_spin()
+
+    def close_overlay(self) -> None:
+        self.overlay_text = ""
+        self.overlay_subtext = ""
+        self.overlay_end_time = 0
+        self.overlay_waiting_for_input = False
+        self.overlay_action = None
 
     def skip_current_animation(self) -> None:
         if self.is_spinning:
@@ -441,8 +460,8 @@ class SlotUI:
                 self.skip_bull_drops()
                 return
 
-            if self.bull_feature_fill_animating:
-                self.skip_bull_fill_animation()
+            if self.bull_feature_phase == "spinning":
+                self.skip_bull_feature_spin()
                 return
 
             if self.bull_feature_phase == "countup":
@@ -523,12 +542,56 @@ class SlotUI:
             row.copy() for row in self.bull_feature_result.multiplier_grid
         ]
 
-        self.bull_feature_drop_index = len(self.bull_feature_result.drops) - 1
+        self.current_grid = [[None for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
 
-        self.bull_feature_phase = "fill"
-        self.bull_feature_fill_animating = True
-        self.bull_feature_fill_animation_end_time = pygame.time.get_ticks()
-        self.update_bull_feature_fill_animation()
+        for row_index in range(GRID_ROWS):
+            for col_index in range(GRID_COLS):
+                if self.bull_feature_display_multiplier_grid[row_index][col_index] > 0:
+                    self.current_grid[row_index][col_index] = BULL
+
+        self.bull_feature_drop_index = len(self.bull_feature_result.drops) - 1
+        self.bull_feature_bump_cell = None
+
+        self.bull_feature_phase = "ready_to_spin"
+
+        self.show_overlay(
+            "PRESS SPIN / SPACE",
+            (255, 200, 120),
+            subtext="to start Bull Feature Spin",
+            wait_for_input=True,
+            action="start_bull_feature_final_spin",
+        )
+
+    def skip_bull_feature_spin(self) -> None:
+        if not self.bull_feature_mode or self.bull_feature_result is None:
+            return
+
+        self.current_grid = make_nullable_grid(
+            self.bull_feature_result.final_symbol_grid
+        )
+
+        self.bull_feature_cell_spin_offsets = {}
+        self.bull_feature_cell_spin_targets = {}
+        self.bull_feature_cell_spin_strips = {}
+
+        self.last_winning_line_results = [
+            {
+                "line_index": line_win.line_index,
+                "payline": PAYLINES[line_win.line_index - 1],
+                "win": line_win.win,
+                "match_count": line_win.match_count,
+                "target_symbol": line_win.matched_symbol_name,
+            }
+            for line_win in self.bull_feature_result.line_wins
+        ]
+
+        self.active_line_win_index = 0
+        self.active_line_win_start_time = pygame.time.get_ticks()
+
+        self.bull_feature_phase = "countup"
+        self.bull_feature_countup_start_time = pygame.time.get_ticks()
+        self.bull_feature_countup_target = self.bull_feature_result.total_win
+        self.bull_feature_countup_value = 0
 
     def skip_bull_fill_animation(self) -> None:
         if not self.bull_feature_mode or self.bull_feature_result is None:
@@ -551,7 +614,7 @@ class SlotUI:
 
         if not self.bull_feature_win_applied:
             apply_win(self.state, self.bull_feature_result.total_win)
-            self.last_total_win += self.bull_feature_result.total_win
+            self.last_total_win = self.bull_feature_result.total_win
             self.bull_feature_win_applied = True
 
     def load_symbol_images(self) -> dict[str, pygame.Surface]:
@@ -757,13 +820,22 @@ class SlotUI:
         self,
         text: str,
         color: tuple[int, int, int],
-        duration_ms: int = 1800,
+        duration_ms: int | None = 500,
         subtext: str = "",
+        wait_for_input: bool = False,
+        action: str | None = None,
     ) -> None:
         self.overlay_text = text
         self.overlay_color = color
-        self.overlay_end_time = pygame.time.get_ticks() + duration_ms
         self.overlay_subtext = subtext
+        self.overlay_waiting_for_input = wait_for_input
+        self.overlay_action = action
+
+        if duration_ms is None:
+            self.overlay_end_time = 0
+        else:
+            self.overlay_end_time = pygame.time.get_ticks() + duration_ms
+            self.overlay_subtext = subtext
 
     def start_yin_yang_feature_playback(self, feature_result) -> None:
         self.feature_mode = True
@@ -1069,8 +1141,9 @@ class SlotUI:
                 self.show_overlay(
                     "PRESS SPIN / SPACE",
                     (255, 200, 120),
-                    999999,
                     subtext="to start Bull Feature Spin",
+                    wait_for_input=True,
+                    action="start_bull_feature_final_spin",
                 )
                 return
 
@@ -1093,7 +1166,7 @@ class SlotUI:
                 self.bull_feature_bump_cell = (row_index, col_index)
                 self.bull_feature_bump_start_time = pygame.time.get_ticks()
 
-            self.bull_feature_next_drop_time = current_time + 350
+            self.bull_feature_next_drop_time = current_time + 500
             return
 
         if self.bull_feature_phase == "spinning":
@@ -1281,7 +1354,7 @@ class SlotUI:
         self.current_grid = [[None for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
 
         self.bull_feature_drop_index = -1
-        self.bull_feature_next_drop_time = pygame.time.get_ticks() + 600
+        self.bull_feature_next_drop_time = pygame.time.get_ticks() + 1000
 
         self.bull_feature_countup_value = 0
         self.bull_feature_countup_target = self.bull_feature_result.total_win
@@ -1291,7 +1364,7 @@ class SlotUI:
         self.show_overlay(
             "DROPPING BULLS",
             (255, 200, 120),
-            1200,
+            700,
             subtext=f"Collected Bulls: {collected_bulls}",
         )
 
@@ -1328,7 +1401,13 @@ class SlotUI:
         self.pending_awarded_free_spins = 0
         self.pending_free_spin_mode = False
 
-        self.show_overlay(f"{awarded} FREE SPINS WON!", (255, 215, 80), 2200)
+        self.show_overlay(
+            f"{awarded} FREE SPINS WON!",
+            (255, 215, 80),
+            wait_for_input=True,
+            subtext="Press Spin/Space to start feature",
+            action="start_free_spin_feature",
+        )
 
     def debug_trigger_yin_yang(self) -> None:
         if self.is_spinning:
@@ -1342,8 +1421,9 @@ class SlotUI:
         self.show_overlay(
             "YIN-YANG FEATURE!",
             (210, 160, 255),
-            2200,
-            subtext=f"Feature win: {result['total_win']}",
+            wait_for_input=True,
+            subtext="Press Spin/Space to start feature",
+            action="start_yin_yang_feature",
         )
         self.start_yin_yang_feature_playback(result["yin_yang_feature_result"])
 
@@ -1486,8 +1566,9 @@ class SlotUI:
             self.show_overlay(
                 f"{self.pending_awarded_free_spins} FREE SPINS WON!",
                 (255, 215, 80),
-                2200,
-                subtext="Coin Feature triggered",
+                wait_for_input=True,
+                subtext="Press Spin/Space to start feature",
+                action="start_free_spin_feature",
             )
 
         if (
@@ -1497,16 +1578,17 @@ class SlotUI:
             self.show_overlay(
                 "YIN-YANG FEATURE!",
                 (210, 160, 255),
-                1800,
-                subtext=f"Feature win: {self.pending_yin_yang_win}",
+                wait_for_input=True,
+                subtext="Press Spin/Space to start feature",
+                action="start_yin_yang_feature",
             )
             self.start_yin_yang_feature_playback(self.pending_yin_yang_feature_result)
         elif self.pending_instant_win > 0:
             self.show_overlay(
                 f"INSTANT WIN {self.pending_instant_win}",
                 (255, 190, 90),
-                1600,
                 subtext="Collector paid all Credit symbols",
+                wait_for_input=True,
             )
 
         # Freispiele beendet → Bull Feature starten
@@ -1909,7 +1991,11 @@ class SlotUI:
         hovered = mouse_pos is not None and self.spin_button_rect.collidepoint(
             mouse_pos
         )
-        enabled = not self.is_spinning and can_spin(self.state)
+        enabled = (
+            self.has_skippable_animation()
+            or self.bull_feature_mode
+            or (not self.is_spinning and can_spin(self.state))
+        )
 
         if not enabled:
             color = BUTTON_DISABLED_COLOR
@@ -2020,7 +2106,14 @@ class SlotUI:
     def draw_overlay(self) -> None:
         current_time = pygame.time.get_ticks()
 
-        if not self.overlay_text or current_time > self.overlay_end_time:
+        if not self.overlay_text:
+            return
+
+        if (
+            not self.overlay_waiting_for_input
+            and self.overlay_end_time > 0
+            and current_time > self.overlay_end_time
+        ):
             return
 
         overlay_surface = pygame.Surface((BASE_WIDTH, BASE_HEIGHT), pygame.SRCALPHA)
@@ -2041,11 +2134,16 @@ class SlotUI:
         text_surface = self.title_font.render(
             self.overlay_text, True, self.overlay_color
         )
+
         self.canvas.blit(
             text_surface,
             (
                 box_rect.x + box_rect.width // 2 - text_surface.get_width() // 2,
-                box_rect.y + 25,
+                (
+                    box_rect.y + box_rect.height // 2 - text_surface.get_height() // 2
+                    if self.overlay_subtext == ""
+                    else box_rect.y + 25
+                ),
             ),
         )
 
@@ -2465,4 +2563,6 @@ class SlotUI:
 
         info_text = self.info_messages[self.info_message_index]
         info_surface = self.small_font.render(info_text, True, TEXT_COLOR)
-        self.canvas.blit(info_surface, (1000, 875))
+        self.canvas.blit(
+            info_surface, (BASE_WIDTH // 2 - info_surface.get_width() // 2, 875)
+        )
