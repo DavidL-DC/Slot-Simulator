@@ -3,7 +3,6 @@ import random
 
 from symbols import ALL_SYMBOLS, BULL, Symbol
 
-
 ROWS = 3
 REELS = 5
 
@@ -21,6 +20,7 @@ class BullLineWin:
     win: float
     multiplier_used: int
     matched_symbol_name: str | None
+    match_count: int
 
 
 @dataclass
@@ -254,6 +254,7 @@ def evaluate_bull_feature_paylines(
                     win=final_win,
                     multiplier_used=1,
                     matched_symbol_name="bull",
+                    match_count=5,
                 )
             )
             continue
@@ -292,6 +293,7 @@ def evaluate_bull_feature_paylines(
                 win=final_win,
                 multiplier_used=line_multiplier,
                 matched_symbol_name=target_symbol.name,
+                match_count=match_count,
             )
         )
 
