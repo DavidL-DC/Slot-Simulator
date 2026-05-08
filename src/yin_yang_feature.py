@@ -2,10 +2,9 @@ from dataclasses import dataclass
 import random
 
 from config import (
-    MIN_BET,
     JACKPOT_VALUES,
     YIN_YANG_PRIZE_TABLES,
-    YIN_YANG_VALUE_MULTIPLIERS,
+    YIN_YANG_VALUE_WEIGHTS,
 )
 
 ROWS = 3
@@ -65,17 +64,22 @@ def get_progressive_factor_for_bet(bet: float) -> int:
 
 
 def get_random_yin_value(bet: float) -> float:
-    pool: list[float] = []
+    values: list[float] = []
+    weights: list[float] = []
 
-    for multiplier in YIN_YANG_VALUE_MULTIPLIERS:
-        pool.append(round(bet * multiplier, 2))
+    for multiplier, weight in YIN_YANG_VALUE_WEIGHTS.items():
+        values.append(round(bet * multiplier, 2))
+        weights.append(weight)
 
     progressive_factor = get_progressive_factor_for_bet(bet)
 
-    pool.extend([JACKPOT_VALUES["mini"]] * progressive_factor)
-    pool.extend([JACKPOT_VALUES["minor"]] * progressive_factor)
+    values.append(JACKPOT_VALUES["mini"])
+    weights.append(progressive_factor)
 
-    return round(random.choice(pool), 2)
+    values.append(JACKPOT_VALUES["minor"])
+    weights.append(0.5 * progressive_factor)
+
+    return round(random.choices(values, weights=weights, k=1)[0], 2)
 
 
 def choose_prize_table_key() -> str:

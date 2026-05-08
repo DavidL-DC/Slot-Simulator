@@ -91,7 +91,17 @@ JACKPOT_VALUES = {
     "grand": 10000,  # Progressive
 }
 
-YIN_YANG_VALUE_MULTIPLIERS = [1, 2, 3, 5, 10, 15, 20, 25, 50]
+YIN_YANG_VALUE_WEIGHTS = {
+    1: 15,
+    2: 35,
+    3: 25,
+    5: 10,
+    10: 6,
+    15: 4,
+    20: 3,
+    25: 1.5,
+    50: 0.5,
+}
 
 YIN_YANG_PRIZE_TABLES = {
     "table_1": {

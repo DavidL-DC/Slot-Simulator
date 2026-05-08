@@ -25,7 +25,7 @@ from slot_machine import (
     spin_reels_with_stops,
     spin_free_spins_with_stops,
 )
-from symbols import ALL_SYMBOLS, Symbol, COLLECTOR, CREDIT, BULL
+from symbols import ALL_SYMBOLS, Symbol, COLLECTOR, CREDIT, BULL, YIN_YANG
 from bull_feature import play_bull_feature
 from config import PAYLINES
 
@@ -78,6 +78,9 @@ class SlotUI:
         ).convert()
         self.free_spin_background_image = pygame.image.load(
             BASE_DIR / "assets" / "backgrounds" / "free_spins.png"
+        ).convert()
+        self.yin_yang_background_image = pygame.image.load(
+            BASE_DIR / "assets" / "backgrounds" / "yin_yang.png"
         ).convert()
 
         self.title_font = pygame.font.SysFont("arial", 36, bold=True)
@@ -151,8 +154,21 @@ class SlotUI:
         self.feature_respin_animating = False
         self.feature_respin_animation_end_time = 0
         self.feature_pending_spin_result = None
+        self.feature_win_applied = False
 
         self.feature_background_grid = None
+
+        self.feature_return_grid: list[list[Symbol | None]] | None = None
+
+        self.yin_yang_cell_spin_offsets: dict[tuple[int, int], float] = {}
+        self.yin_yang_cell_spin_targets: dict[tuple[int, int], float] = {}
+        self.yin_yang_cell_spin_strips: dict[tuple[int, int], list[Symbol]] = {}
+        self.yin_yang_cell_spin_start_time = 0
+        self.yin_yang_cell_spin_duration = 1300
+
+        self.yin_yang_visible_symbols: list[list[Symbol | None]] = [
+            [None for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)
+        ]
 
         self.bull_feature_background_grid = None
         self.bull_feature_fill_animating = False
@@ -492,29 +508,28 @@ class SlotUI:
         self.feature_display_spins_left = current_spin.spins_left_after
         self.feature_display_new_positions = current_spin.new_positions.copy()
 
-        if self.feature_background_grid is None:
-            self.feature_background_grid = self.create_feature_background_grid()
+        self.current_grid = [row.copy() for row in self.yin_yang_visible_symbols]
 
-        for row_index in range(3):
-            for col_index in range(5):
-                if self.feature_display_grid[row_index][col_index] is None:
-                    self.feature_background_grid[row_index][
-                        col_index
-                    ] = self.get_feature_spin_symbol()
+        for row_index in range(GRID_ROWS):
+            for col_index in range(GRID_COLS):
+                if self.feature_display_grid[row_index][col_index] is not None:
+                    self.current_grid[row_index][col_index] = YIN_YANG
 
         self.feature_current_completed_columns = current_spin.completed_columns.copy()
         self.feature_current_grand_column_index = current_spin.grand_column_index
 
         if current_spin.grand_activated:
-            self.feature_grand_popup_text = "GRAND JACKPOT ACTIVATED!"
-            self.feature_grand_popup_end_time = pygame.time.get_ticks() + 1800
+            self.show_overlay("GRAND JACKPOT ACTIVATED!", GOLD_COLOR, 1800)
 
         self.feature_flash_until = pygame.time.get_ticks() + 500
+
+        self.yin_yang_cell_spin_offsets = {}
+        self.yin_yang_cell_spin_targets = {}
+        self.yin_yang_cell_spin_strips = {}
+
         self.feature_respin_animating = False
-        self.feature_respin_animation_end_time = 0
         self.feature_waiting_for_input = True
         self.feature_pending_spin_result = None
-        self.update_feature_spinning_cells()
 
     def skip_yin_yang_countup(self) -> None:
         if not self.feature_mode or self.feature_result is None:
@@ -842,9 +857,24 @@ class SlotUI:
         self.feature_result = feature_result
         self.feature_spin_index = -1
 
+        self.feature_return_grid = [row.copy() for row in self.current_grid]
+        self.last_winning_line_results = []
+        self.pending_winning_line_results = []
+        self.active_line_win_index = 0
+        self.active_line_win_start_time = 0
+
         self.feature_display_grid = [
             row.copy() for row in feature_result.start_grid_values
         ]
+        self.yin_yang_visible_symbols = [
+            [None for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)
+        ]
+        self.current_grid = [[None for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
+        for row_index in range(GRID_ROWS):
+            for col_index in range(GRID_COLS):
+                if self.feature_display_grid[row_index][col_index] is not None:
+                    self.current_grid[row_index][col_index] = YIN_YANG
+
         self.feature_background_grid = self.create_feature_background_grid()
         self.feature_display_columns = feature_result.start_column_values.copy()
         self.feature_display_spins_left = 3
@@ -872,6 +902,7 @@ class SlotUI:
         self.feature_respin_animating = False
         self.feature_respin_animation_end_time = 0
         self.feature_pending_spin_result = None
+        self.feature_win_applied = False
 
     def update_feature_playback(self) -> None:
         if not self.feature_mode or self.feature_result is None:
@@ -892,6 +923,12 @@ class SlotUI:
                 self.feature_phase = "done"
                 self.feature_finished_waiting = True
                 self.feature_waiting_for_input = False
+                self.feature_countup_value = self.feature_countup_target
+
+                if self.feature_result is not None and not self.feature_win_applied:
+                    apply_win(self.state, self.feature_result.total_win)
+                    self.last_total_win = self.feature_result.total_win
+                    self.feature_win_applied = True
 
                 self.feature_current_completed_columns = (
                     self.feature_result.completed_columns.copy()
@@ -925,15 +962,19 @@ class SlotUI:
             ]
 
             self.feature_respin_animating = True
-            self.feature_respin_animation_end_time = pygame.time.get_ticks() + 900
+            self.feature_respin_animation_end_time = (
+                pygame.time.get_ticks() + self.yin_yang_cell_spin_duration
+            )
             self.feature_waiting_for_input = False
 
-            if self.feature_display_grid is not None:
-                self.update_feature_spinning_cells()
+            self.prepare_yin_yang_respin_animation(self.feature_pending_spin_result)
 
             return
 
         if self.feature_phase == "done":
+            if self.feature_return_grid is not None:
+                self.current_grid = [row.copy() for row in self.feature_return_grid]
+
             self.feature_mode = False
             self.feature_result = None
             self.feature_display_new_positions = []
@@ -947,20 +988,26 @@ class SlotUI:
             self.feature_respin_animating = False
             self.feature_respin_animation_end_time = 0
             self.feature_pending_spin_result = None
+            self.feature_return_grid = None
 
     def update_feature_respin_animation(self) -> None:
         if not self.feature_mode or not self.feature_respin_animating:
             return
 
-        current_time = pygame.time.get_ticks()
-
-        if current_time < self.feature_respin_animation_end_time:
-            self.update_feature_spinning_cells()
-            return
-
         if self.feature_pending_spin_result is None:
             self.feature_respin_animating = False
             self.feature_waiting_for_input = True
+            return
+
+        current_time = pygame.time.get_ticks()
+        elapsed = current_time - self.yin_yang_cell_spin_start_time
+        progress = min(1.0, elapsed / self.yin_yang_cell_spin_duration)
+        eased = self.ease_out_cubic(progress)
+
+        for pos, target in self.yin_yang_cell_spin_targets.items():
+            self.yin_yang_cell_spin_offsets[pos] = target * eased
+
+        if progress < 1.0:
             return
 
         current_spin = self.feature_pending_spin_result
@@ -970,28 +1017,28 @@ class SlotUI:
         self.feature_display_spins_left = current_spin.spins_left_after
         self.feature_display_new_positions = current_spin.new_positions.copy()
 
-        if self.feature_background_grid is None:
-            self.feature_background_grid = self.create_feature_background_grid()
+        self.current_grid = [row.copy() for row in self.yin_yang_visible_symbols]
 
-        for row_index in range(3):
-            for col_index in range(5):
-                if self.feature_display_grid[row_index][col_index] is None:
-                    self.feature_background_grid[row_index][
-                        col_index
-                    ] = self.get_feature_spin_symbol()
+        for row_index in range(GRID_ROWS):
+            for col_index in range(GRID_COLS):
+                if self.feature_display_grid[row_index][col_index] is not None:
+                    self.current_grid[row_index][col_index] = YIN_YANG
 
         self.feature_current_completed_columns = current_spin.completed_columns.copy()
         self.feature_current_grand_column_index = current_spin.grand_column_index
 
         if current_spin.grand_activated:
-            self.feature_grand_popup_text = "GRAND JACKPOT ACTIVATED!"
-            self.feature_grand_popup_end_time = pygame.time.get_ticks() + 1800
+            self.show_overlay("GRAND JACKPOT ACTIVATED!", GOLD_COLOR, 1800)
 
         self.feature_flash_until = pygame.time.get_ticks() + 500
+
+        self.yin_yang_cell_spin_offsets = {}
+        self.yin_yang_cell_spin_targets = {}
+        self.yin_yang_cell_spin_strips = {}
+
         self.feature_respin_animating = False
         self.feature_waiting_for_input = True
         self.feature_pending_spin_result = None
-        self.update_feature_spinning_cells()
 
     def update_feature_spinning_cells(self) -> None:
         if self.feature_display_grid is None or not self.feature_respin_animating:
@@ -1011,6 +1058,73 @@ class SlotUI:
                     self.feature_background_grid[row_index][col_index] = symbol
 
         self.feature_spinning_cells = spinning_cells
+
+    def prepare_yin_yang_respin_animation(self, current_spin) -> None:
+        if self.feature_display_grid is None:
+            return
+
+        self.yin_yang_cell_spin_offsets = {}
+        self.yin_yang_cell_spin_targets = {}
+        self.yin_yang_cell_spin_strips = {}
+
+        spin_pool = [
+            symbol
+            for symbol in ALL_SYMBOLS
+            if symbol.name
+            in {
+                "nine",
+                "ten",
+                "jack",
+                "queen",
+                "king",
+                "gong",
+                "house",
+                "lantern",
+                "vase",
+                "yin_yang",
+            }
+        ]
+
+        miss_pool = [symbol for symbol in spin_pool if symbol.name != "yin_yang"]
+
+        symbol_step = CELL_HEIGHT + CELL_GAP_VERTICAL
+        self.yin_yang_cell_spin_start_time = pygame.time.get_ticks()
+
+        for row_index in range(GRID_ROWS):
+            for col_index in range(GRID_COLS):
+                # Bereits gelandete Yins bleiben fix
+                if self.feature_display_grid[row_index][col_index] is not None:
+                    continue
+
+                # Nur leere Felder spinnen
+                pos = (row_index, col_index)
+
+                # Wenn auf diesem Feld im nächsten Spin ein Yin landet,
+                # soll die Animation auch auf YIN_YANG enden.
+                target_symbol = (
+                    YIN_YANG
+                    if current_spin.grid_values[row_index][col_index] is not None
+                    else random.choice(miss_pool)
+                )
+
+                strip = spin_pool.copy()
+
+                if target_symbol not in strip:
+                    strip.append(target_symbol)
+
+                target_index = strip.index(target_symbol)
+                loops = 3 + col_index
+                target_steps = loops * len(strip) + (
+                    (len(strip) - target_index) % len(strip)
+                )
+
+                self.yin_yang_visible_symbols[row_index][col_index] = target_symbol
+
+                self.yin_yang_cell_spin_strips[pos] = strip
+                self.yin_yang_cell_spin_offsets[pos] = 0.0
+                self.yin_yang_cell_spin_targets[pos] = target_steps * symbol_step
+
+                self.current_grid[row_index][col_index] = None
 
     def start_bull_feature_final_spin(self) -> None:
         if (
@@ -1415,9 +1529,8 @@ class SlotUI:
 
         result = trigger_debug_yin_yang_feature(self.state.current_bet)
 
-        apply_win(self.state, result["total_win"])
+        self.pending_yin_yang_feature_result = result["yin_yang_feature_result"]
 
-        self.last_total_win = result["total_win"]
         self.show_overlay(
             "YIN-YANG FEATURE!",
             (210, 160, 255),
@@ -1425,7 +1538,6 @@ class SlotUI:
             subtext="Press Spin/Space to start feature",
             action="start_yin_yang_feature",
         )
-        self.start_yin_yang_feature_playback(result["yin_yang_feature_result"])
 
     def debug_trigger_instant_win(self) -> None:
         free_spin_mode = is_free_spin(self.state)
@@ -1582,7 +1694,6 @@ class SlotUI:
                 subtext="Press Spin/Space to start feature",
                 action="start_yin_yang_feature",
             )
-            self.start_yin_yang_feature_playback(self.pending_yin_yang_feature_result)
         elif self.pending_instant_win > 0:
             self.show_overlay(
                 f"INSTANT WIN {self.pending_instant_win}",
@@ -1603,6 +1714,11 @@ class SlotUI:
     def draw(self) -> None:
         self.draw_background()
         self.draw_grid()
+        self.draw_yin_yang_spins_left()
+        self.draw_yin_yang_column_values()
+        self.draw_yin_yang_feature_grid_values()
+        self.draw_yin_yang_completed_column_highlights()
+        self.draw_yin_yang_countup_popup()
         self.draw_bottom_panel()
         self.draw_free_spin_status()
         self.draw_spin_button()
@@ -1611,15 +1727,15 @@ class SlotUI:
         self.draw_line_win_text()
         self.draw_overlay()
         self.draw_bull_feature_countup_popup()
-        self.draw_yin_yang_feature_board()
         self.draw_info_text()
 
     def draw_background(self) -> None:
-        background = (
-            self.free_spin_background_image
-            if is_free_spin(self.state) or self.pending_free_spin_mode
-            else self.background_image
-        )
+        if self.feature_mode:
+            background = self.yin_yang_background_image
+        elif is_free_spin(self.state) or self.pending_free_spin_mode:
+            background = self.free_spin_background_image
+        else:
+            background = self.background_image
 
         scaled_background = pygame.transform.smoothscale(
             background,
@@ -1647,7 +1763,12 @@ class SlotUI:
             if self.bull_feature_phase == "spinning":
                 self.draw_bull_feature_spinning_cells()
 
-        winning_positions = self.get_active_winning_positions()
+        if self.feature_mode and self.feature_respin_animating:
+            self.draw_yin_yang_spinning_cells()
+
+        winning_positions = (
+            [] if self.feature_mode else self.get_active_winning_positions()
+        )
 
         for col_index in range(GRID_COLS):
             if self.is_spinning and not self.locked_reels[col_index]:
@@ -1666,6 +1787,13 @@ class SlotUI:
                     self.bull_feature_mode
                     and self.bull_feature_phase == "spinning"
                     and self.current_grid[row_index][col_index] is None
+                ):
+                    continue
+
+                if (
+                    self.feature_mode
+                    and self.feature_respin_animating
+                    and symbol is None
                 ):
                     continue
 
@@ -1912,8 +2040,10 @@ class SlotUI:
             offset = self.bull_feature_cell_spin_offsets.get((row_index, col_index), 0)
             strip_len = len(strip)
 
-            current_symbol_index = int(offset // symbol_step) % strip_len
+            current_symbol_index = int(offset // symbol_step)
             pixel_offset = offset % symbol_step
+
+            current_symbol_index = (-current_symbol_index) % strip_len
 
             x = GRID_X + col_index * (CELL_WIDTH + CELL_GAP_HORIZONTAL)
             y = GRID_Y + row_index * (CELL_HEIGHT + CELL_GAP_VERTICAL)
@@ -1927,7 +2057,7 @@ class SlotUI:
                 symbol_index = (current_symbol_index + draw_offset) % strip_len
                 symbol = strip[symbol_index]
 
-                draw_y = y + draw_offset * symbol_step - pixel_offset
+                draw_y = y + draw_offset * symbol_step + pixel_offset
 
                 image = self.symbol_images.get(symbol.name)
 
@@ -2058,14 +2188,22 @@ class SlotUI:
         self.draw_small_button(
             self.denom_button_rect,
             f"{self.state.denom:.2f}",
-            enabled=not self.is_spinning and not is_free_spin(self.state),
+            enabled=not self.is_spinning
+            and not is_free_spin(self.state)
+            and not self.feature_mode,
         )
 
-        if not is_free_spin(self.state) and not self.bull_feature_mode:
+        if (
+            not is_free_spin(self.state)
+            and not self.bull_feature_mode
+            and not self.feature_mode
+        ):
             self.draw_small_button(
                 self.credits_button_rect,
                 f"{self.state.credits_bet}",
-                enabled=not self.is_spinning and not is_free_spin(self.state),
+                enabled=not self.is_spinning
+                and not is_free_spin(self.state)
+                and not self.feature_mode,
             )
 
     def draw_selection_popup(self) -> None:
@@ -2114,6 +2252,7 @@ class SlotUI:
             and self.overlay_end_time > 0
             and current_time > self.overlay_end_time
         ):
+            self.close_overlay()
             return
 
         overlay_surface = pygame.Surface((BASE_WIDTH, BASE_HEIGHT), pygame.SRCALPHA)
@@ -2159,278 +2298,223 @@ class SlotUI:
                 ),
             )
 
-    def draw_yin_yang_feature_board(self) -> None:
-        if (
-            not self.feature_mode
-            or self.feature_display_grid is None
-            or self.feature_display_columns is None
-        ):
+    def draw_yin_yang_feature_grid_values(self) -> None:
+        if not self.feature_mode or self.feature_display_grid is None:
+            return
+
+        for row_index in range(GRID_ROWS):
+            for col_index in range(GRID_COLS):
+                value = self.feature_display_grid[row_index][col_index]
+
+                if value is None:
+                    continue
+
+                x = GRID_X + col_index * (CELL_WIDTH + CELL_GAP_HORIZONTAL)
+                y = GRID_Y + row_index * (CELL_HEIGHT + CELL_GAP_VERTICAL)
+
+                value_surface = self.credit_font.render(
+                    str(value),
+                    True,
+                    GOLD_COLOR,
+                )
+
+                self.canvas.blit(
+                    value_surface,
+                    (
+                        x + CELL_WIDTH // 2 - value_surface.get_width() // 2,
+                        y + CELL_HEIGHT // 2 - value_surface.get_height() // 2,
+                    ),
+                )
+
+    def draw_yin_yang_spins_left(self) -> None:
+        if not self.feature_mode:
+            return
+
+        values = [3, 2, 1]
+
+        center_x = 73
+        start_y = 657
+        gap_y = 80
+
+        for index, value in enumerate(values):
+            color = (
+                GOLD_COLOR if value == self.feature_display_spins_left else TEXT_COLOR
+            )
+
+            surface = self.credit_font.render(str(value), True, color)
+            rect = surface.get_rect(center=(center_x, start_y + index * gap_y))
+            self.canvas.blit(surface, rect)
+
+    def draw_yin_yang_column_values(self) -> None:
+        if not self.feature_mode or self.feature_display_columns is None:
+            return
+
+        y = 50
+
+        for col_index, value in enumerate(self.feature_display_columns):
+            x = (
+                GRID_X
+                + col_index * (CELL_WIDTH + CELL_GAP_HORIZONTAL)
+                + CELL_WIDTH // 2
+            )
+
+            color = (
+                GOLD_COLOR
+                if col_index in self.feature_current_completed_columns
+                else TEXT_COLOR
+            )
+
+            surface = self.title_font.render(str(value), True, color)
+            rect = surface.get_rect(center=(x, y))
+            self.canvas.blit(surface, rect)
+
+    def draw_yin_yang_completed_column_highlights(self) -> None:
+        if not self.feature_mode:
+            return
+
+        for col_index in self.feature_current_completed_columns:
+            x = GRID_X + col_index * (CELL_WIDTH + CELL_GAP_HORIZONTAL)
+
+            lower_rect = pygame.Rect(
+                x - 8,
+                GRID_Y - 8,
+                CELL_WIDTH + 16,
+                GRID_ROWS * CELL_HEIGHT + (GRID_ROWS - 1) * CELL_GAP_VERTICAL + 16,
+            )
+
+            upper_rect = pygame.Rect(
+                x - 8,
+                GRID_Y - 70,
+                CELL_WIDTH + 16,
+                70,
+            )
+
+            pygame.draw.rect(
+                self.canvas,
+                GOLD_COLOR,
+                lower_rect,
+                width=6,
+            )
+
+            pygame.draw.rect(
+                self.canvas,
+                GOLD_COLOR,
+                upper_rect,
+                width=6,
+            )
+
+    def draw_yin_yang_countup_popup(self) -> None:
+        if not self.feature_mode:
+            return
+
+        if self.feature_phase not in {"countup", "done"}:
             return
 
         overlay_surface = pygame.Surface((BASE_WIDTH, BASE_HEIGHT), pygame.SRCALPHA)
-        overlay_surface.fill((0, 0, 0, 180))
+        overlay_surface.fill((0, 0, 0, 150))
         self.canvas.blit(overlay_surface, (0, 0))
 
-        board_rect = pygame.Rect(120, 100, 760, 520)
-        pygame.draw.rect(self.canvas, (28, 24, 40), board_rect, border_radius=18)
+        box_rect = pygame.Rect(
+            BASE_WIDTH // 2 - 360,
+            BASE_HEIGHT // 2 - 130,
+            720,
+            260,
+        )
+
+        pygame.draw.rect(self.canvas, (28, 24, 40), box_rect, border_radius=24)
         pygame.draw.rect(
-            self.canvas, (210, 160, 255), board_rect, width=4, border_radius=18
+            self.canvas, (210, 160, 255), box_rect, width=5, border_radius=24
         )
 
         title_surface = self.title_font.render(
-            "YIN-YANG FEATURE", True, (220, 180, 255)
+            "YIN-YANG FEATURE WIN",
+            True,
+            (220, 180, 255),
         )
+
+        win_surface = self.credit_font.render(
+            f"{self.feature_countup_value:.2f}",
+            True,
+            GOLD_COLOR,
+        )
+
         self.canvas.blit(
             title_surface,
-            (board_rect.centerx - title_surface.get_width() // 2, 120),
+            (
+                box_rect.centerx - title_surface.get_width() // 2,
+                box_rect.y + 45,
+            ),
         )
 
-        phase_text = f"Respins left: {self.feature_display_spins_left}"
-        if self.feature_phase == "countup":
-            phase_text = "Counting feature win..."
-        elif self.feature_phase == "done":
-            phase_text = "Feature complete"
-
-        info_surface = self.label_font.render(phase_text, True, TEXT_COLOR)
         self.canvas.blit(
-            info_surface,
-            (board_rect.centerx - info_surface.get_width() // 2, 165),
+            win_surface,
+            (
+                box_rect.centerx - win_surface.get_width() // 2,
+                box_rect.y + 125,
+            ),
         )
 
-        feature_grid_x = 200
-        feature_grid_y = 250
-        feature_cell_w = 90
-        feature_cell_h = 80
-        feature_gap = 12
-
-        pulse = (pygame.time.get_ticks() // 140) % 2 == 0
-
-        for col_index, value in enumerate(self.feature_display_columns):
-            x = feature_grid_x + col_index * (feature_cell_w + feature_gap)
-            y = feature_grid_y - 50
-
-            is_completed = col_index in self.feature_current_completed_columns
-            is_grand = str(value) == "GRAND"
-
-            if is_grand:
-                if is_completed:
-                    fill_color = (255, 225, 110)
-                    border_color = (255, 255, 220)
-                else:
-                    fill_color = (170, 90, 40)
-                    border_color = (255, 220, 140)
-                label = "GRAND"
-            elif is_completed:
-                fill_color = (220, 180, 60)
-                border_color = (255, 235, 170)
-                label = str(value)
-            else:
-                fill_color = (85, 55, 110)
-                border_color = (220, 180, 255)
-                label = str(value)
-
-            col_rect = pygame.Rect(x, y, feature_cell_w, 36)
-            pygame.draw.rect(self.canvas, fill_color, col_rect, border_radius=10)
-            pygame.draw.rect(
-                self.canvas, border_color, col_rect, width=2, border_radius=10
+        if self.feature_phase == "done":
+            close_surface = self.label_font.render(
+                "SPACE / SPIN zum Schließen",
+                True,
+                TEXT_COLOR,
             )
 
-            value_surface = self.small_font.render(label, True, TEXT_COLOR)
             self.canvas.blit(
-                value_surface,
+                close_surface,
                 (
-                    x + feature_cell_w // 2 - value_surface.get_width() // 2,
-                    y + col_rect.height // 2 - value_surface.get_height() // 2,
+                    box_rect.centerx - close_surface.get_width() // 2,
+                    box_rect.y + 210,
                 ),
             )
 
-        for row_index in range(3):
-            for col_index in range(5):
-                x = feature_grid_x + col_index * (feature_cell_w + feature_gap)
-                y = feature_grid_y + row_index * (feature_cell_h + feature_gap)
+    def draw_yin_yang_spinning_cells(self) -> None:
+        if not self.feature_mode or not self.feature_respin_animating:
+            return
 
-                cell_rect = pygame.Rect(x, y, feature_cell_w, feature_cell_h)
+        symbol_step = CELL_HEIGHT + CELL_GAP_VERTICAL
 
-                spinning = (row_index, col_index) in self.feature_spinning_cells
-                value = self.feature_display_grid[row_index][col_index]
-                is_new = (row_index, col_index) in self.feature_display_new_positions
-                flashing = pygame.time.get_ticks() < self.feature_flash_until
-                is_completed_column = (
-                    col_index in self.feature_current_completed_columns
-                )
-                is_grand_column = self.feature_current_grand_column_index == col_index
+        for (row_index, col_index), strip in self.yin_yang_cell_spin_strips.items():
+            offset = self.yin_yang_cell_spin_offsets.get((row_index, col_index), 0)
+            strip_len = len(strip)
 
-                if value is None:
-                    if spinning:
-                        fill_color = (60, 60, 75)
-                        border_color = (150, 150, 180)
-                    else:
-                        fill_color = (60, 60, 70)
-                        border_color = (110, 110, 125)
-                else:
-                    if is_new and flashing and pulse:
-                        fill_color = (255, 240, 140)
-                    elif is_new and flashing:
-                        fill_color = (250, 220, 130)
-                    elif is_new:
-                        fill_color = (235, 205, 150)
-                    else:
-                        fill_color = (205, 175, 240)
+            current_symbol_index = int(offset // symbol_step)
+            pixel_offset = offset % symbol_step
 
-                    if is_grand_column:
-                        border_color = (255, 240, 160)
-                    elif is_completed_column:
-                        border_color = (255, 220, 120)
-                    else:
-                        border_color = (235, 235, 250)
+            current_symbol_index = (-current_symbol_index) % strip_len
 
-                pygame.draw.rect(self.canvas, fill_color, cell_rect, border_radius=12)
-                pygame.draw.rect(
-                    self.canvas, border_color, cell_rect, width=3, border_radius=12
-                )
+            x = GRID_X + col_index * (CELL_WIDTH + CELL_GAP_HORIZONTAL)
+            y = GRID_Y + row_index * (CELL_HEIGHT + CELL_GAP_VERTICAL)
 
-                if value is not None and is_completed_column:
-                    highlight_color = (255, 225, 120)
-                    if is_grand_column:
-                        highlight_color = (255, 245, 180)
+            clip_rect = pygame.Rect(x, y, CELL_WIDTH, CELL_HEIGHT)
 
-                    inner_highlight_rect = pygame.Rect(
-                        x + 4, y + 4, feature_cell_w - 8, feature_cell_h - 8
-                    )
-                    pygame.draw.rect(
-                        self.canvas,
-                        highlight_color,
-                        inner_highlight_rect,
-                        width=2,
-                        border_radius=10,
-                    )
+            old_clip = self.canvas.get_clip()
+            self.canvas.set_clip(clip_rect)
 
-                if value is None:
-                    display_symbol = None
+            for draw_offset in range(-1, 2):
+                symbol_index = (current_symbol_index + draw_offset) % strip_len
+                symbol = strip[symbol_index]
 
-                    if self.feature_background_grid is not None:
-                        display_symbol = self.feature_background_grid[row_index][
-                            col_index
-                        ]
-                    image = (
-                        self.symbol_images.get(display_symbol.name)
-                        if display_symbol is not None
-                        else None
-                    )
-                    if image:
-                        self.canvas.blit(
-                            image,
-                            (
-                                x + feature_cell_w // 2 - image.get_width() // 2,
-                                y + feature_cell_h // 2 - image.get_height() // 2,
-                            ),
-                        )
-                    else:
-                        display_text = (
-                            display_symbol.display if display_symbol is not None else ""
-                        )
+                draw_y = y + draw_offset * symbol_step + pixel_offset
 
-                        if display_text:
-                            spin_surface = self.small_font.render(
-                                display_text, True, (230, 230, 240)
-                            )
-                            self.canvas.blit(
-                                spin_surface,
-                                (
-                                    x
-                                    + feature_cell_w // 2
-                                    - spin_surface.get_width() // 2,
-                                    y
-                                    + feature_cell_h // 2
-                                    - spin_surface.get_height() // 2,
-                                ),
-                            )
+                image = self.symbol_images.get(symbol.name)
 
-                if value is not None:
-                    yin_surface = self.small_font.render("YIN", True, (30, 20, 40))
-                    value_surface = self.symbol_font.render(
-                        str(value), True, (30, 20, 40)
-                    )
-
+                if image:
                     self.canvas.blit(
-                        yin_surface,
+                        image,
                         (
-                            x + feature_cell_w // 2 - yin_surface.get_width() // 2,
-                            y + 10,
-                        ),
-                    )
-                    self.canvas.blit(
-                        value_surface,
-                        (
-                            x + feature_cell_w // 2 - value_surface.get_width() // 2,
-                            y + 35,
+                            x + CELL_WIDTH // 2 - image.get_width() // 2,
+                            draw_y + CELL_HEIGHT // 2 - image.get_height() // 2,
                         ),
                     )
 
-        if self.feature_result is not None:
-            if self.feature_phase == "done":
-                symbol_display = self.feature_result.symbol_total
-                column_display = self.feature_result.column_bonus_total
-                total_display = self.feature_countup_target
-            elif self.feature_phase == "countup":
-                symbol_display = 0
-                column_display = 0
-                total_display = self.feature_countup_value
-            else:
-                symbol_display = 0
-                column_display = 0
-                total_display = 0
-
-            line_1 = f"Symbols: {symbol_display}    " f"Columns: {column_display}"
-            line_2 = f"Total Win: {total_display}"
-
-            summary_1_surface = self.label_font.render(line_1, True, (240, 230, 255))
-            summary_2_surface = self.title_font.render(line_2, True, (255, 220, 120))
-
-            self.canvas.blit(
-                summary_1_surface,
-                (
-                    board_rect.centerx - summary_1_surface.get_width() // 2,
-                    530,
-                ),
-            )
-            self.canvas.blit(
-                summary_2_surface,
-                (
-                    board_rect.centerx - summary_2_surface.get_width() // 2,
-                    565,
-                ),
-            )
-
-        if self.feature_phase == "spins" and self.feature_waiting_for_input:
-            self.draw_feature_continue_button("CONTINUE RESPIN")
-
-        elif self.feature_phase == "done" and self.feature_finished_waiting:
-            self.draw_feature_continue_button("CLOSE FEATURE")
-
-        current_time = pygame.time.get_ticks()
-        if (
-            self.feature_grand_popup_text
-            and current_time < self.feature_grand_popup_end_time
-        ):
-            popup_rect = pygame.Rect(250, 205, 500, 55)
-            pygame.draw.rect(self.canvas, (255, 220, 100), popup_rect, border_radius=12)
-            pygame.draw.rect(
-                self.canvas, (255, 255, 230), popup_rect, width=3, border_radius=12
-            )
-
-            popup_surface = self.label_font.render(
-                self.feature_grand_popup_text, True, (40, 30, 20)
-            )
-            self.canvas.blit(
-                popup_surface,
-                (
-                    popup_rect.centerx - popup_surface.get_width() // 2,
-                    popup_rect.centery - popup_surface.get_height() // 2,
-                ),
-            )
+            self.canvas.set_clip(old_clip)
 
     def draw_free_spin_status(self) -> None:
+        if self.feature_mode:
+            return
+
         if (
             not is_free_spin(self.state)
             and not self.pending_free_spin_mode
