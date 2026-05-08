@@ -99,8 +99,8 @@ YIN_YANG_VALUE_WEIGHTS = {
     10: 6,
     15: 4,
     20: 3,
-    25: 1.5,
-    50: 0.5,
+    25: 1,
+    50: 0.1,
 }
 
 YIN_YANG_PRIZE_TABLES = {

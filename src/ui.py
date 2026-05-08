@@ -28,6 +28,7 @@ from slot_machine import (
 from symbols import ALL_SYMBOLS, Symbol, COLLECTOR, CREDIT, BULL, YIN_YANG
 from bull_feature import play_bull_feature
 from config import PAYLINES
+from sound_manager import SoundManager
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -83,6 +84,8 @@ class SlotUI:
             BASE_DIR / "assets" / "backgrounds" / "yin_yang.png"
         ).convert()
 
+        self.sounds = SoundManager(BASE_DIR)
+
         self.title_font = pygame.font.SysFont("arial", 36, bold=True)
         self.label_font = pygame.font.SysFont("arial", 24)
         self.symbol_font = pygame.font.SysFont("arial", 28, bold=True)
@@ -121,6 +124,7 @@ class SlotUI:
         self.pending_credit_values = {}
         self.pending_free_spin_bull_count = 0
 
+        self.pending_total_line_win = 0
         self.pending_winning_line_results = []
 
         self.feature_mode = False
@@ -183,6 +187,7 @@ class SlotUI:
         self.spin_button_rect = pygame.Rect(1467, 665, 113, 48)
 
         self.last_winning_line_results = []
+        self.last_total_line_win = 0
         self.active_line_win_index = 0
         self.active_line_win_start_time = 0
         self.line_win_display_duration_ms = 2000
@@ -493,9 +498,22 @@ class SlotUI:
                 if self.feature_display_grid[row_index][col_index] is not None:
                     self.current_grid[row_index][col_index] = YIN_YANG
 
+        old_completed = set(self.feature_current_completed_columns)
+        new_completed = set(current_spin.completed_columns)
+
+        if current_spin.new_positions:
+            self.sounds.play("yin_yang_column_step")
+
+        if new_completed - old_completed:
+            self.sounds.play("yin_yang_column_complete")
+
+        if current_spin.grand_activated:
+            self.sounds.play("grand_activated")
+
         self.feature_current_completed_columns = current_spin.completed_columns.copy()
 
         if current_spin.grand_activated:
+            self.sounds.play("grand_activated")
             self.show_overlay("GRAND JACKPOT ACTIVATED!", GOLD_COLOR, 1800)
 
         self.yin_yang_cell_spin_offsets = {}
@@ -512,6 +530,7 @@ class SlotUI:
 
         self.feature_countup_value = self.feature_countup_target
         self.feature_phase = "done"
+        self.sounds.stop("countup")
         self.feature_finished_waiting = True
         self.feature_waiting_for_input = False
 
@@ -580,6 +599,7 @@ class SlotUI:
         self.active_line_win_start_time = pygame.time.get_ticks()
 
         self.bull_feature_phase = "countup"
+        self.sounds.play_loop("countup")
         self.bull_feature_countup_start_time = pygame.time.get_ticks()
         self.bull_feature_countup_target = self.bull_feature_result.total_win
         self.bull_feature_countup_value = 0
@@ -590,6 +610,7 @@ class SlotUI:
 
         self.bull_feature_countup_value = self.bull_feature_countup_target
         self.bull_feature_phase = "done"
+        self.sounds.stop("countup")
 
         if not self.bull_feature_win_applied:
             apply_win(self.state, self.bull_feature_result.total_win)
@@ -716,11 +737,26 @@ class SlotUI:
 
             if progress >= 1.0:
                 self.locked_reels[reel_index] = True
+                self.sounds.play("spin")
+
+                bull_landed = False
 
                 for row_index in range(GRID_ROWS):
                     self.current_grid[row_index][reel_index] = self.final_grid[
                         row_index
                     ][reel_index]
+
+                    symbol = self.current_grid[row_index][reel_index]
+
+                    if (
+                        self.pending_free_spin_mode
+                        and symbol is not None
+                        and symbol.name == "bull"
+                    ):
+                        bull_landed = True
+
+                if bull_landed:
+                    self.sounds.play("bull_collect_or_drop")
 
         if all(self.locked_reels):
             self.finish_spin()
@@ -830,6 +866,7 @@ class SlotUI:
 
             if progress >= 1.0:
                 self.feature_phase = "done"
+                self.sounds.stop("countup")
                 self.feature_finished_waiting = True
                 self.feature_waiting_for_input = False
                 self.feature_countup_value = self.feature_countup_target
@@ -853,6 +890,7 @@ class SlotUI:
 
             if next_index >= len(self.feature_result.spins):
                 self.feature_phase = "countup"
+                self.sounds.play_loop("countup")
                 self.feature_countup_start_time = pygame.time.get_ticks()
                 self.feature_waiting_for_input = False
                 return
@@ -915,10 +953,21 @@ class SlotUI:
                 if self.feature_display_grid[row_index][col_index] is not None:
                     self.current_grid[row_index][col_index] = YIN_YANG
 
+        if current_spin.grand_activated:
+            self.sounds.play("grand_activated")
+            self.show_overlay("GRAND JACKPOT ACTIVATED!", GOLD_COLOR, 1800)
+
+        if current_spin.new_positions:
+            self.sounds.play("yin_yang_column_step")
+
+        old_completed = set(self.feature_current_completed_columns)
+
         self.feature_current_completed_columns = current_spin.completed_columns.copy()
 
-        if current_spin.grand_activated:
-            self.show_overlay("GRAND JACKPOT ACTIVATED!", GOLD_COLOR, 1800)
+        new_completed = set(current_spin.completed_columns)
+
+        if new_completed - old_completed:
+            self.sounds.play("yin_yang_column_complete")
 
         self.yin_yang_cell_spin_offsets = {}
         self.yin_yang_cell_spin_targets = {}
@@ -1103,6 +1152,7 @@ class SlotUI:
             ] = current_drop.multiplier_after
 
             self.current_grid[row_index][col_index] = BULL
+            self.sounds.play("bull_collect_or_drop")
 
             if old_multiplier > 0:
                 self.bull_feature_bump_cell = (row_index, col_index)
@@ -1139,6 +1189,7 @@ class SlotUI:
                 self.active_line_win_start_time = pygame.time.get_ticks()
 
                 self.bull_feature_phase = "countup"
+                self.sounds.play_loop("countup")
                 self.bull_feature_countup_start_time = pygame.time.get_ticks()
                 self.bull_feature_countup_target = self.bull_feature_result.total_win
 
@@ -1154,6 +1205,7 @@ class SlotUI:
 
             if progress >= 1.0:
                 self.bull_feature_phase = "done"
+                self.sounds.stop("countup")
                 self.bull_feature_countup_value = self.bull_feature_countup_target
 
                 if not self.bull_feature_win_applied:
@@ -1225,6 +1277,7 @@ class SlotUI:
         self.pending_winning_line_results = [
             result for result in win_result["line_results"] if result["win"] > 0
         ]
+        self.pending_total_line_win = win_result["line_win"]
 
         total_win = win_result["total_win"]
         yin_yang_feature_result = win_result["yin_yang_feature_result"]
@@ -1332,6 +1385,7 @@ class SlotUI:
         self.pending_awarded_free_spins = 0
         self.pending_free_spin_mode = False
 
+        self.sounds.play("feature_trigger")
         self.show_overlay(
             f"{awarded} FREE SPINS WON!",
             (255, 215, 80),
@@ -1348,6 +1402,7 @@ class SlotUI:
 
         self.pending_yin_yang_feature_result = result["yin_yang_feature_result"]
 
+        self.sounds.play("feature_trigger")
         self.show_overlay(
             "YIN-YANG FEATURE!",
             (210, 160, 255),
@@ -1470,6 +1525,7 @@ class SlotUI:
             )
 
             self.bull_feature_phase = "countup"
+            self.sounds.play_loop("countup")
             self.bull_feature_countup_start_time = pygame.time.get_ticks()
             return
 
@@ -1486,10 +1542,15 @@ class SlotUI:
         self.last_total_win = self.pending_total_win
         self.last_credit_values = self.pending_credit_values.copy()
         self.last_winning_line_results = self.pending_winning_line_results.copy()
+        self.last_total_line_win = self.pending_total_line_win
         self.active_line_win_index = 0
         self.active_line_win_start_time = pygame.time.get_ticks()
 
+        if self.last_total_line_win:
+            self.sounds.play_line_win(self.last_total_line_win, self.state.current_bet)
+
         if self.pending_awarded_free_spins > 0:
+            self.sounds.play("feature_trigger")
             self.show_overlay(
                 f"{self.pending_awarded_free_spins} FREE SPINS WON!",
                 (255, 215, 80),
@@ -1502,6 +1563,7 @@ class SlotUI:
             self.pending_yin_yang_count >= 3
             and self.pending_yin_yang_feature_result is not None
         ):
+            self.sounds.play("feature_trigger")
             self.show_overlay(
                 "YIN-YANG FEATURE!",
                 (210, 160, 255),
@@ -1510,6 +1572,7 @@ class SlotUI:
                 action="start_yin_yang_feature",
             )
         elif self.pending_instant_win > 0:
+            self.sounds.play("instant_win")
             self.show_overlay(
                 f"INSTANT WIN {self.pending_instant_win}",
                 (255, 190, 90),
