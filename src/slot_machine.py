@@ -461,7 +461,7 @@ def evaluate_total_win(
         grid, bet
     )
 
-    total_win = round(line_win + scatter_win + yin_yang_win + instant_win, 2)
+    total_win = round(line_win + scatter_win + instant_win, 2)
 
     return {
         "line_win": line_win,

@@ -95,7 +95,9 @@ class SlotUI:
         self.current_grid: list[list[Symbol | None]] = make_nullable_grid(
             spin_reels(self.state.credits_bet)
         )
-        self.final_grid: list[list[Symbol | None]] = self.current_grid
+        self.final_grid: list[list[Symbol | None]] = [
+            row.copy() for row in self.current_grid
+        ]
 
         self.last_total_win = 0
         self.last_credit_values = {}
@@ -111,7 +113,6 @@ class SlotUI:
         self.locked_reels = [False, False, False, False, False]
 
         self.pending_total_win = 0
-        self.pending_yin_yang_win = 0
         self.pending_yin_yang_count = 0
         self.pending_awarded_free_spins = 0
         self.pending_free_spin_mode = False
@@ -129,7 +130,6 @@ class SlotUI:
         self.feature_display_grid = None
         self.feature_display_columns = None
         self.feature_display_spins_left = 0
-        self.feature_display_new_positions = []
 
         self.feature_phase = "idle"
 
@@ -140,23 +140,12 @@ class SlotUI:
 
         self.feature_waiting_for_input = False
         self.feature_finished_waiting = False
-        self.feature_continue_button_rect = pygame.Rect(380, 610, 240, 52)
 
-        self.feature_flash_until = 0
-
-        self.feature_spinning_cells: list[tuple[int, int]] = []
         self.feature_current_completed_columns: list[int] = []
-        self.feature_current_grand_column_index = None
-
-        self.feature_grand_popup_text = ""
-        self.feature_grand_popup_end_time = 0
 
         self.feature_respin_animating = False
-        self.feature_respin_animation_end_time = 0
         self.feature_pending_spin_result = None
         self.feature_win_applied = False
-
-        self.feature_background_grid = None
 
         self.feature_return_grid: list[list[Symbol | None]] | None = None
 
@@ -170,17 +159,12 @@ class SlotUI:
             [None for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)
         ]
 
-        self.bull_feature_background_grid = None
-        self.bull_feature_fill_animating = False
-        self.bull_feature_fill_animation_end_time = 0
-
         self.bull_feature_mode = False
         self.bull_feature_result = None
         self.bull_feature_phase = "idle"
         # idle, armed, drops, ready_to_spin, spinning, countup, done
 
         self.bull_feature_display_multiplier_grid: list[list[int]] | None = None
-        self.bull_feature_display_symbol_grid: list[list[Symbol | None]] | None = None
         self.bull_feature_drop_index = -1
         self.bull_feature_next_drop_time = 0
         self.bull_feature_win_applied = False
@@ -241,7 +225,6 @@ class SlotUI:
             self.update_feature_playback()
             self.update_feature_respin_animation()
             self.update_bull_feature_playback()
-            self.update_bull_feature_fill_animation()
             self.update_line_win_display()
             self.update_info_message_display()
             self.draw()
@@ -343,16 +326,7 @@ class SlotUI:
                     self.open_selection_popup("credits")
                     return
 
-                if (
-                    self.feature_mode
-                    and self.feature_continue_button_rect.collidepoint(mouse_pos)
-                ):
-                    if self.feature_phase == "spins" and self.feature_waiting_for_input:
-                        self.advance_feature_playback()
-                    elif self.feature_phase == "done" and self.feature_finished_waiting:
-                        self.advance_feature_playback()
-                    return
-                elif self.spin_button_rect.collidepoint(mouse_pos):
+                if self.spin_button_rect.collidepoint(mouse_pos):
                     self.handle_skip_or_continue()
 
     def resize_window_16_9(self, width: int, height: int) -> None:
@@ -386,7 +360,12 @@ class SlotUI:
             )
 
     def can_change_bet_settings(self) -> bool:
-        return not self.is_spinning and not is_free_spin(self.state)
+        return (
+            not self.is_spinning
+            and not is_free_spin(self.state)
+            and not self.feature_mode
+            and not self.bull_feature_mode
+        )
 
     def has_skippable_animation(self) -> bool:
         if self.is_spinning:
@@ -506,7 +485,6 @@ class SlotUI:
         self.feature_display_grid = [row.copy() for row in current_spin.grid_values]
         self.feature_display_columns = current_spin.column_values.copy()
         self.feature_display_spins_left = current_spin.spins_left_after
-        self.feature_display_new_positions = current_spin.new_positions.copy()
 
         self.current_grid = [row.copy() for row in self.yin_yang_visible_symbols]
 
@@ -516,12 +494,9 @@ class SlotUI:
                     self.current_grid[row_index][col_index] = YIN_YANG
 
         self.feature_current_completed_columns = current_spin.completed_columns.copy()
-        self.feature_current_grand_column_index = current_spin.grand_column_index
 
         if current_spin.grand_activated:
             self.show_overlay("GRAND JACKPOT ACTIVATED!", GOLD_COLOR, 1800)
-
-        self.feature_flash_until = pygame.time.get_ticks() + 500
 
         self.yin_yang_cell_spin_offsets = {}
         self.yin_yang_cell_spin_targets = {}
@@ -543,7 +518,8 @@ class SlotUI:
         self.feature_current_completed_columns = (
             self.feature_result.completed_columns.copy()
         )
-        self.feature_current_grand_column_index = self.feature_result.grand_column_index
+
+        self.apply_yin_yang_feature_win_once()
 
     def skip_bull_drops(self) -> None:
         if (
@@ -607,18 +583,6 @@ class SlotUI:
         self.bull_feature_countup_start_time = pygame.time.get_ticks()
         self.bull_feature_countup_target = self.bull_feature_result.total_win
         self.bull_feature_countup_value = 0
-
-    def skip_bull_fill_animation(self) -> None:
-        if not self.bull_feature_mode or self.bull_feature_result is None:
-            return
-
-        self.bull_feature_fill_animating = False
-        self.bull_feature_fill_animation_end_time = 0
-        self.bull_feature_display_symbol_grid = make_nullable_grid(
-            self.bull_feature_result.final_symbol_grid
-        )
-        self.bull_feature_phase = "countup"
-        self.bull_feature_countup_start_time = pygame.time.get_ticks()
 
     def skip_bull_countup(self) -> None:
         if not self.bull_feature_mode or self.bull_feature_result is None:
@@ -724,61 +688,6 @@ class SlotUI:
 
         return [(payline[reel_index], reel_index) for reel_index in range(match_count)]
 
-    def get_feature_spin_symbol(self, bull_feature: bool = False) -> Symbol:
-        weighted_symbols = [
-            symbol
-            for symbol in ALL_SYMBOLS
-            if symbol.name
-            in {
-                "nine",
-                "ten",
-                "jack",
-                "queen",
-                "king",
-                "gong",
-                "house",
-                "lantern",
-                "vase",
-            }
-        ]
-
-        if not bull_feature:
-            yin_symbol = [
-                next(symbol for symbol in ALL_SYMBOLS if symbol.name == "yin_yang")
-            ]
-            weighted_symbols.extend(yin_symbol * 5)
-            extra_yin = [
-                symbol for symbol in ALL_SYMBOLS if symbol.name == "yin_yang"
-            ] * 4
-            pool = weighted_symbols + extra_yin
-            return random.choice(pool)
-        else:
-            return random.choice(weighted_symbols)
-
-    def create_feature_background_grid(self) -> list[list[Symbol]]:
-        weighted_symbols = [
-            symbol
-            for symbol in ALL_SYMBOLS
-            if symbol.name
-            in {
-                "yin_yang",
-                "nine",
-                "ten",
-                "jack",
-                "queen",
-                "king",
-                "gong",
-                "house",
-                "lantern",
-                "vase",
-            }
-        ]
-
-        extra_yin = [symbol for symbol in ALL_SYMBOLS if symbol.name == "yin_yang"] * 4
-        pool = weighted_symbols + extra_yin
-
-        return [[random.choice(pool) for _ in range(5)] for _ in range(3)]
-
     def ease_out_cubic(self, t: float) -> float:
         return 1 - pow(1 - t, 3)
 
@@ -852,6 +761,17 @@ class SlotUI:
             self.overlay_end_time = pygame.time.get_ticks() + duration_ms
             self.overlay_subtext = subtext
 
+    def apply_yin_yang_feature_win_once(self) -> None:
+        if self.feature_result is None:
+            return
+
+        if self.feature_win_applied:
+            return
+
+        apply_win(self.state, self.feature_result.total_win)
+        self.last_total_win = self.feature_result.total_win
+        self.feature_win_applied = True
+
     def start_yin_yang_feature_playback(self, feature_result) -> None:
         self.feature_mode = True
         self.feature_result = feature_result
@@ -875,10 +795,8 @@ class SlotUI:
                 if self.feature_display_grid[row_index][col_index] is not None:
                     self.current_grid[row_index][col_index] = YIN_YANG
 
-        self.feature_background_grid = self.create_feature_background_grid()
         self.feature_display_columns = feature_result.start_column_values.copy()
         self.feature_display_spins_left = 3
-        self.feature_display_new_positions = []
 
         self.feature_phase = "spins"
 
@@ -888,19 +806,10 @@ class SlotUI:
 
         self.feature_waiting_for_input = True
         self.feature_finished_waiting = False
-        self.feature_flash_until = 0
 
         self.feature_current_completed_columns = []
-        self.feature_current_grand_column_index = None
-
-        self.feature_spinning_cells = []
-        self.update_feature_spinning_cells()
-
-        self.feature_grand_popup_text = ""
-        self.feature_grand_popup_end_time = 0
 
         self.feature_respin_animating = False
-        self.feature_respin_animation_end_time = 0
         self.feature_pending_spin_result = None
         self.feature_win_applied = False
 
@@ -925,16 +834,10 @@ class SlotUI:
                 self.feature_waiting_for_input = False
                 self.feature_countup_value = self.feature_countup_target
 
-                if self.feature_result is not None and not self.feature_win_applied:
-                    apply_win(self.state, self.feature_result.total_win)
-                    self.last_total_win = self.feature_result.total_win
-                    self.feature_win_applied = True
+                self.apply_yin_yang_feature_win_once()
 
                 self.feature_current_completed_columns = (
                     self.feature_result.completed_columns.copy()
-                )
-                self.feature_current_grand_column_index = (
-                    self.feature_result.grand_column_index
                 )
             return
 
@@ -951,8 +854,6 @@ class SlotUI:
             if next_index >= len(self.feature_result.spins):
                 self.feature_phase = "countup"
                 self.feature_countup_start_time = pygame.time.get_ticks()
-                self.feature_display_new_positions = []
-                self.feature_spinning_cells = []
                 self.feature_waiting_for_input = False
                 return
 
@@ -962,9 +863,6 @@ class SlotUI:
             ]
 
             self.feature_respin_animating = True
-            self.feature_respin_animation_end_time = (
-                pygame.time.get_ticks() + self.yin_yang_cell_spin_duration
-            )
             self.feature_waiting_for_input = False
 
             self.prepare_yin_yang_respin_animation(self.feature_pending_spin_result)
@@ -977,16 +875,10 @@ class SlotUI:
 
             self.feature_mode = False
             self.feature_result = None
-            self.feature_display_new_positions = []
-            self.feature_spinning_cells = []
-            self.feature_background_grid = None
             self.feature_phase = "idle"
             self.feature_finished_waiting = False
             self.feature_waiting_for_input = False
-            self.feature_grand_popup_text = ""
-            self.feature_grand_popup_end_time = 0
             self.feature_respin_animating = False
-            self.feature_respin_animation_end_time = 0
             self.feature_pending_spin_result = None
             self.feature_return_grid = None
 
@@ -1015,7 +907,6 @@ class SlotUI:
         self.feature_display_grid = [row.copy() for row in current_spin.grid_values]
         self.feature_display_columns = current_spin.column_values.copy()
         self.feature_display_spins_left = current_spin.spins_left_after
-        self.feature_display_new_positions = current_spin.new_positions.copy()
 
         self.current_grid = [row.copy() for row in self.yin_yang_visible_symbols]
 
@@ -1025,12 +916,9 @@ class SlotUI:
                     self.current_grid[row_index][col_index] = YIN_YANG
 
         self.feature_current_completed_columns = current_spin.completed_columns.copy()
-        self.feature_current_grand_column_index = current_spin.grand_column_index
 
         if current_spin.grand_activated:
             self.show_overlay("GRAND JACKPOT ACTIVATED!", GOLD_COLOR, 1800)
-
-        self.feature_flash_until = pygame.time.get_ticks() + 500
 
         self.yin_yang_cell_spin_offsets = {}
         self.yin_yang_cell_spin_targets = {}
@@ -1039,25 +927,6 @@ class SlotUI:
         self.feature_respin_animating = False
         self.feature_waiting_for_input = True
         self.feature_pending_spin_result = None
-
-    def update_feature_spinning_cells(self) -> None:
-        if self.feature_display_grid is None or not self.feature_respin_animating:
-            self.feature_spinning_cells = []
-            return
-
-        if self.feature_background_grid is None:
-            self.feature_background_grid = self.create_feature_background_grid()
-
-        spinning_cells: list[tuple[int, int]] = []
-
-        for row_index in range(3):
-            for col_index in range(5):
-                if self.feature_display_grid[row_index][col_index] is None:
-                    spinning_cells.append((row_index, col_index))
-                    symbol = self.get_feature_spin_symbol()
-                    self.feature_background_grid[row_index][col_index] = symbol
-
-        self.feature_spinning_cells = spinning_cells
 
     def prepare_yin_yang_respin_animation(self, current_spin) -> None:
         if self.feature_display_grid is None:
@@ -1137,9 +1006,7 @@ class SlotUI:
 
         self.last_winning_line_results = []
 
-        self.overlay_text = ""
-        self.overlay_subtext = ""
-        self.overlay_end_time = 0
+        self.close_overlay()
 
         self.final_grid = make_nullable_grid(self.bull_feature_result.final_symbol_grid)
 
@@ -1194,45 +1061,6 @@ class SlotUI:
                 self.bull_feature_cell_spin_offsets[pos] = 0.0
                 self.bull_feature_cell_spin_targets[pos] = target_steps * symbol_step
                 self.current_grid[row_index][col_index] = None
-
-    def update_bull_feature_spinning_cells(self) -> None:
-        if (
-            not self.bull_feature_mode
-            or self.bull_feature_display_multiplier_grid is None
-            or not self.bull_feature_fill_animating
-        ):
-            return
-
-        if self.bull_feature_background_grid is None:
-            self.bull_feature_background_grid = self.create_feature_background_grid()
-
-        for row_index in range(3):
-            for col_index in range(5):
-                if self.bull_feature_display_multiplier_grid[row_index][col_index] == 0:
-                    self.bull_feature_background_grid[row_index][col_index] = (
-                        self.get_feature_spin_symbol(True)
-                    )
-
-    def update_bull_feature_fill_animation(self) -> None:
-        if (
-            not self.bull_feature_mode
-            or not self.bull_feature_fill_animating
-            or self.bull_feature_result is None
-        ):
-            return
-
-        current_time = pygame.time.get_ticks()
-
-        if current_time < self.bull_feature_fill_animation_end_time:
-            self.update_bull_feature_spinning_cells()
-            return
-
-        self.bull_feature_fill_animating = False
-        self.bull_feature_display_symbol_grid = make_nullable_grid(
-            self.bull_feature_result.final_symbol_grid
-        )
-        self.bull_feature_phase = "countup"
-        self.bull_feature_countup_start_time = pygame.time.get_ticks()
 
     def update_bull_feature_playback(self) -> None:
         if (
@@ -1399,13 +1227,11 @@ class SlotUI:
         ]
 
         total_win = win_result["total_win"]
-        yin_yang_win = win_result["yin_yang_win"]
         yin_yang_feature_result = win_result["yin_yang_feature_result"]
         instant_win = win_result["instant_win"]
         credit_values = win_result["credit_values"]
 
         self.pending_total_win = total_win
-        self.pending_yin_yang_win = yin_yang_win
         self.pending_yin_yang_count = win_result["yin_yang_count"]
         self.pending_awarded_free_spins = win_result["awarded_free_spins"]
         self.pending_yin_yang_feature_result = yin_yang_feature_result
@@ -1461,10 +1287,6 @@ class SlotUI:
             [0 for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)
         ]
 
-        self.bull_feature_display_symbol_grid = [
-            [None for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)
-        ]
-
         self.current_grid = [[None for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
 
         self.bull_feature_drop_index = -1
@@ -1488,13 +1310,8 @@ class SlotUI:
         self.bull_feature_phase = "idle"
 
         self.bull_feature_display_multiplier_grid = None
-        self.bull_feature_display_symbol_grid = None
         self.bull_feature_drop_index = -1
         self.bull_feature_next_drop_time = 0
-
-        self.bull_feature_fill_animating = False
-        self.bull_feature_fill_animation_end_time = 0
-        self.bull_feature_background_grid = None
 
         self.bull_feature_countup_value = 0
         self.bull_feature_countup_target = 0
@@ -1588,13 +1405,11 @@ class SlotUI:
         )
 
         total_win = win_result["total_win"]
-        yin_yang_win = win_result["yin_yang_win"]
         instant_win = win_result["instant_win"]
         yin_yang_feature_result = win_result["yin_yang_feature_result"]
         credit_values = win_result["credit_values"]
 
         self.pending_total_win = total_win
-        self.pending_yin_yang_win = yin_yang_win
         self.pending_instant_win = instant_win
         self.pending_yin_yang_count = win_result["yin_yang_count"]
         self.pending_awarded_free_spins = win_result["awarded_free_spins"]
@@ -1781,20 +1596,6 @@ class SlotUI:
                     continue
 
                 if self.is_spinning and not self.locked_reels[col_index]:
-                    continue
-
-                if (
-                    self.bull_feature_mode
-                    and self.bull_feature_phase == "spinning"
-                    and self.current_grid[row_index][col_index] is None
-                ):
-                    continue
-
-                if (
-                    self.feature_mode
-                    and self.feature_respin_animating
-                    and symbol is None
-                ):
                     continue
 
                 x = GRID_X + col_index * (CELL_WIDTH + CELL_GAP_HORIZONTAL)
@@ -2123,6 +1924,7 @@ class SlotUI:
         )
         enabled = (
             self.has_skippable_animation()
+            or self.feature_mode
             or self.bull_feature_mode
             or (not self.is_spinning and can_spin(self.state))
         )
@@ -2172,7 +1974,7 @@ class SlotUI:
             self.canvas,
             color,
             rect,
-            border_radius=0,
+            border_radius=border_radius,
         )
 
         text_surface = self.title_font.render(text, True, TEXT_COLOR)
@@ -2603,39 +2405,6 @@ class SlotUI:
                     box_rect.y + 210,
                 ),
             )
-
-    def draw_feature_continue_button(self, text: str) -> None:
-        mouse_pos = self.get_canvas_mouse_pos()
-        hovered = (
-            mouse_pos is not None
-            and self.feature_continue_button_rect.collidepoint(mouse_pos)
-        )
-
-        color = (140, 90, 180) if not hovered else (170, 110, 210)
-
-        pygame.draw.rect(
-            self.canvas, color, self.feature_continue_button_rect, border_radius=12
-        )
-        pygame.draw.rect(
-            self.canvas,
-            (240, 230, 255),
-            self.feature_continue_button_rect,
-            width=3,
-            border_radius=12,
-        )
-
-        text_surface = self.label_font.render(text, True, TEXT_COLOR)
-        self.canvas.blit(
-            text_surface,
-            (
-                self.feature_continue_button_rect.x
-                + self.feature_continue_button_rect.width // 2
-                - text_surface.get_width() // 2,
-                self.feature_continue_button_rect.y
-                + self.feature_continue_button_rect.height // 2
-                - text_surface.get_height() // 2,
-            ),
-        )
 
     def draw_info_text(self) -> None:
         help_text = "SPACE = Spin | F = Freispiele | Y = Yin-Yang | I = Instant Win"
