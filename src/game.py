@@ -68,7 +68,8 @@ def set_denom(state: GameState, new_denom: float) -> bool:
         return False
 
     state.denom = new_denom
-    state.credits_bet = valid_credits[0]
+    if state.credits_bet not in valid_credits:
+        state.credits_bet = valid_credits[0]
     recalculate_bet(state)
     return True
 
@@ -87,7 +88,8 @@ def set_credits_bet(state: GameState, new_credits_bet: int) -> bool:
         return False
 
     state.credits_bet = new_credits_bet
-    state.denom = valid_denoms[0]
+    if state.denom not in valid_denoms:
+        state.denom = valid_denoms[0]
     recalculate_bet(state)
     return True
 

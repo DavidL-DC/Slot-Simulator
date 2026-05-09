@@ -223,6 +223,9 @@ class SlotUI:
         self.overlay_waiting_for_input = False
         self.overlay_action: str | None = None
 
+        self.deposit_popup_open = False
+        self.deposit_input_text = ""
+
     def run(self) -> None:
         while self.running:
             self.handle_events()
@@ -286,6 +289,10 @@ class SlotUI:
                     self.windowed_size = (event.w, event.h)
 
             elif event.type == pygame.KEYDOWN:
+                if self.deposit_popup_open:
+                    self.handle_deposit_key(event)
+                    return
+
                 if event.key == pygame.K_SPACE:
                     self.handle_skip_or_continue()
                 elif event.key == pygame.K_f:
@@ -296,6 +303,10 @@ class SlotUI:
                     self.debug_trigger_instant_win()
                 elif event.key == pygame.K_F11:
                     self.toggle_fullscreen()
+                elif event.key == pygame.K_m:
+                    self.sounds.enabled = not self.sounds.enabled
+                elif event.key == pygame.K_c:
+                    self.open_deposit_popup()
 
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_pos = self.get_canvas_mouse_pos()
@@ -333,6 +344,49 @@ class SlotUI:
 
                 if self.spin_button_rect.collidepoint(mouse_pos):
                     self.handle_skip_or_continue()
+
+    def open_deposit_popup(self) -> None:
+        if self.is_spinning or self.feature_mode or self.bull_feature_mode:
+            return
+
+        self.deposit_popup_open = True
+        self.deposit_input_text = ""
+
+    def close_deposit_popup(self) -> None:
+        self.deposit_popup_open = False
+        self.deposit_input_text = ""
+
+    def handle_deposit_key(self, event) -> None:
+        if event.key == pygame.K_ESCAPE:
+            self.close_deposit_popup()
+            return
+
+        if event.key == pygame.K_RETURN:
+            try:
+                amount = round(float(self.deposit_input_text.replace(",", ".")), 2)
+            except ValueError:
+                return
+
+            if amount > 0:
+                self.state.balance += amount
+                self.close_deposit_popup()
+
+            return
+
+        if event.key == pygame.K_BACKSPACE:
+            self.deposit_input_text = self.deposit_input_text[:-1]
+            return
+
+        char = event.unicode
+
+        if char.isdigit():
+            self.deposit_input_text += char
+        elif (
+            char in {".", ","}
+            and "." not in self.deposit_input_text
+            and "," not in self.deposit_input_text
+        ):
+            self.deposit_input_text += char
 
     def resize_window_16_9(self, width: int, height: int) -> None:
         target_height = int(width * 9 / 16)
@@ -1103,8 +1157,9 @@ class SlotUI:
                 target_index = strip.index(target_symbol)
                 loops = 4 + col_index
 
-                target_steps = loops * len(strip) + target_index
-
+                target_steps = loops * len(strip) + (
+                    (len(strip) - target_index) % len(strip)
+                )
                 pos = (row_index, col_index)
                 self.bull_feature_cell_spin_strips[pos] = strip
                 self.bull_feature_cell_spin_offsets[pos] = 0.0
@@ -1605,6 +1660,7 @@ class SlotUI:
         self.draw_line_win_text()
         self.draw_overlay()
         self.draw_bull_feature_countup_popup()
+        self.draw_deposit_popup()
         self.draw_info_text()
 
     def draw_background(self) -> None:
@@ -2469,16 +2525,89 @@ class SlotUI:
                 ),
             )
 
+    def draw_deposit_popup(self) -> None:
+        if not self.deposit_popup_open:
+            return
+
+        overlay = pygame.Surface((BASE_WIDTH, BASE_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 160))
+        self.canvas.blit(overlay, (0, 0))
+
+        box_rect = pygame.Rect(
+            BASE_WIDTH // 2 - 360,
+            BASE_HEIGHT // 2 - 150,
+            720,
+            300,
+        )
+
+        pygame.draw.rect(self.canvas, (25, 25, 35), box_rect, border_radius=20)
+        pygame.draw.rect(self.canvas, GOLD_COLOR, box_rect, width=4, border_radius=20)
+
+        title_surface = self.title_font.render(
+            "GELD EINZAHLEN",
+            True,
+            GOLD_COLOR,
+        )
+        self.canvas.blit(
+            title_surface,
+            (
+                box_rect.centerx - title_surface.get_width() // 2,
+                box_rect.y + 35,
+            ),
+        )
+
+        label_surface = self.label_font.render(
+            "Betrag eingeben:",
+            True,
+            TEXT_COLOR,
+        )
+        self.canvas.blit(label_surface, (box_rect.x + 80, box_rect.y + 105))
+
+        input_rect = pygame.Rect(
+            box_rect.x + 80, box_rect.y + 145, box_rect.width - 160, 60
+        )
+
+        pygame.draw.rect(self.canvas, (10, 10, 18), input_rect, border_radius=10)
+        pygame.draw.rect(
+            self.canvas, ACCENT_COLOR, input_rect, width=3, border_radius=10
+        )
+
+        input_text = self.deposit_input_text or "0.00"
+
+        input_surface = self.title_font.render(
+            input_text,
+            True,
+            TEXT_COLOR,
+        )
+        self.canvas.blit(
+            input_surface,
+            (
+                input_rect.x + 20,
+                input_rect.y + input_rect.height // 2 - input_surface.get_height() // 2,
+            ),
+        )
+
+        help_surface = self.small_font.render(
+            "ENTER = einzahlen | ESC = abbrechen",
+            True,
+            TEXT_COLOR,
+        )
+        self.canvas.blit(
+            help_surface,
+            (
+                box_rect.centerx - help_surface.get_width() // 2,
+                box_rect.y + 235,
+            ),
+        )
+
     def draw_info_text(self) -> None:
-        help_text = "SPACE = Spin | F = Freispiele | Y = Yin-Yang | I = Instant Win"
+        help_text = "SPACE = Spin | F = Freispiele | Y = Yin-Yang | I = Instant Win | M = Ton an/aus | C = Einzahlen"
         help_surface = self.small_font.render(help_text, True, TEXT_COLOR)
         self.canvas.blit(
             help_surface,
-            (205, 875),
+            (BASE_WIDTH // 2 - help_surface.get_width() // 2, 875),
         )
 
         info_text = self.info_messages[self.info_message_index]
         info_surface = self.small_font.render(info_text, True, TEXT_COLOR)
-        self.canvas.blit(
-            info_surface, (BASE_WIDTH // 2 - info_surface.get_width() // 2, 875)
-        )
+        self.canvas.blit(info_surface, (205, 875))

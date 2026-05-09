@@ -18,7 +18,6 @@ class SoundManager:
             "line_high": pygame.mixer.Sound(sound_dir / "line_high.wav"),
             "instant_win": pygame.mixer.Sound(sound_dir / "instant_win.wav"),
             "countup": pygame.mixer.Sound(sound_dir / "countup.wav"),
-            "yin_yang_drop": pygame.mixer.Sound(sound_dir / "yin.wav"),
             "yin_yang_column_step": pygame.mixer.Sound(
                 sound_dir / "column_increase.wav"
             ),
@@ -32,6 +31,10 @@ class SoundManager:
 
         for sound in self.sounds.values():
             sound.set_volume(self.master_volume)
+
+        self.sounds["line_low"].set_volume(0.3)
+        self.sounds["yin_yang_column_step"].set_volume(0.3)
+        self.sounds["bull_collect_or_drop"].set_volume(0.3)
 
     def play(self, name: str) -> None:
         if not self.enabled:
