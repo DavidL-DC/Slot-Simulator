@@ -395,8 +395,8 @@ def run_simulation(
 
     while completed_base_spins < base_game_spins:
         if not is_free_spin(state):
-            if completed_base_spins % 10000 == 0:
-                print(f"{completed_base_spins}/{base_game_spins}")
+            if completed_base_spins % 100000 == 0:
+                print(f"{int(completed_base_spins/base_game_spins*100)}%")
             if state.balance < state.current_bet:
                 break
             completed_base_spins += 1
@@ -558,7 +558,7 @@ def print_balancing_summary(stats: SimulationStats, credit_bet: int = 100) -> No
         f"Bull Feature={stats.bull_feature_rtp():.2f}% | "
         f"Grand={stats.grand_rtp():.2f}%"
     )
-    print(
+    """ print(
         f"  Base excl. Yin-Yang={stats.base_game_rtp():.2f}% | "
         f"Base incl. Yin-Yang={stats.base_game_with_features_rtp():.2f}% | "
         f"Free Games incl. Bull={stats.free_spin_rtp():.2f}%"
@@ -636,4 +636,4 @@ def print_balancing_summary(stats: SimulationStats, credit_bet: int = 100) -> No
             stats.instant_value_counts,
             key=lambda x: (not x.isdigit(), float(x) if x.isdigit() else x),
         ):
-            print(f"  {label}: {stats.instant_value_counts[label]}")
+            print(f"  {label}: {stats.instant_value_counts[label]}") """

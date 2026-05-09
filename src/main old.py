@@ -367,10 +367,10 @@ def main() -> None:
     run_game_loop(state)"""
 
     state = GameState(balance=START_BALANCE, current_bet=DEFAULT_BET, credits_bet=50)
-    try_run_simulation(state, "sim 1000000")
+    try_run_simulation(state, "sim 10000000")
 
-    state = GameState(balance=START_BALANCE, current_bet=DEFAULT_BET, credits_bet=500)
-    try_run_simulation(state, "sim 1000000")
+    """ state = GameState(balance=START_BALANCE, current_bet=DEFAULT_BET, credits_bet=500)
+    try_run_simulation(state, "sim 1000000") """
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import random
 
-from symbols import ALL_SYMBOLS, BULL, Symbol
+from symbols import ALL_SYMBOLS, BULL, Symbol, LANTERN, VASE, GONG, HOUSE
 
 ROWS = 3
 REELS = 5
@@ -38,11 +38,17 @@ def create_empty_multiplier_grid() -> list[list[int]]:
 
 
 def get_bull_feature_symbol_pool() -> list[Symbol]:
-    return [
+    pool = [
         symbol
         for symbol in ALL_SYMBOLS
         if symbol.name not in {"coin", "credit", "collector", "bull", "yin_yang"}
     ]
+    pool.append(LANTERN)
+    pool.append(VASE)
+    pool.append(GONG)
+    random.shuffle(pool)
+
+    return pool
 
 
 def get_neighbor_positions(
